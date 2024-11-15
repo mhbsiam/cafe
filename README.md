@@ -21,7 +21,8 @@ CAFE is an open-source, free, no-code, web-app platform for the high-dimensional
    ```
    For Windows:
    ```bash
-   iwr -useb https://pixi.sh/install.ps1 | PIXI_VERSION=v0.34.0 iex
+   iwr -useb https://pixi.sh/install.ps1 | iex
+   pixi self-update --version 0.34.0
    ```
    
 3. **Install CAFE using Pixi**  
