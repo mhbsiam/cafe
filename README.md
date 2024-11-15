@@ -1,7 +1,9 @@
 
 # CAFE (Cell Analyzer for Flow Experiments)
 
-CAFE is an open-source, free, no-code, web-app platform for the high-dimensional spectral flow cytometry data analysis. CAFE has been developed in Python can run seamlessly on regular computers operating on either Windows, macOS, or Linux. The application will allow the analysis and visualization of SFCM data to produce high-resolution publication-ready figures that support reproducible research of immune cell populations.
+CAFE is an open-source, free, no-code, web-app platform for high-dimensional spectral flow cytometry data analysis. CAFE has been developed in Python and it can run seamlessly on regular computers operating on either Windows, macOS, or Linux. The application will allow the analysis and visualization of SFCM data to produce high-resolution publication-ready figures that support reproducible research of immune cell populations.
+
+A web version of CAFE is also available to view at https://cafe-tlab.com
 
 ##
 ## Installation
