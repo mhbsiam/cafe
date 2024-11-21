@@ -3,6 +3,20 @@
 
 CAFE is an open-source, free, no-code, web-app platform for high-dimensional spectral flow cytometry data analysis. CAFE has been developed in Python and it can run seamlessly on regular computers operating on either Windows, macOS, or Linux. The application will allow the analysis and visualization of SFCM data to produce high-resolution publication-ready figures that support reproducible research of immune cell populations.
 
+
+##
+## How to Download CAFE
+
+### Step 1: Download the tool as a ZIP file
+1. Click the green **Code** button near the top right of this page.
+2. Select **Download ZIP**.
+3. Save the ZIP file to your computer.
+
+### Step 2: Extract the ZIP File & Install
+1. Right-click the file and choose **Extract All** (or use a file extraction tool to unzip it).
+2. After extraction, install using either Pixi or Conda.
+
+
 ##
 ## Installation
 
