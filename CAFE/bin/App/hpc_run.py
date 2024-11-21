@@ -49,6 +49,15 @@ def process_csv_files(input_dir, output_dir):
         file_path = os.path.join(input_dir, csv_file)
         table = pv.read_csv(file_path)
 
+        numeric_columns = [col for col in table.column_names if pa.types.is_integer(table.schema.field(col).type)]
+        for col in numeric_columns:
+            table = table.set_column(table.column_names.index(col), col, table.column(col).cast(pa.float64()))
+
+        if 'SampleID' in table.column_names:
+            table = table.set_column(table.column_names.index('SampleID'), 'SampleID', table.column('SampleID').cast(pa.string()))
+        if 'Group' in table.column_names:
+            table = table.set_column(table.column_names.index('Group'), 'Group', table.column('Group').cast(pa.string()))
+        
         # Extract SampleID and Group from filename
         name_parts = csv_file.replace('.csv', '').split('_')
         if len(name_parts) != 2:
@@ -117,13 +126,14 @@ def batch_correction(adata):
 def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, output_dir):
     for n_neighbors in n_neighbors_list:
         print(f"\nComputing neighbors with n_neighbors={n_neighbors}, metric={metric}")
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors, method='umap', metric=metric)
-        sc.tl.umap(adata, min_dist=min_dist)
+        random_state = 50
+        sc.pp.neighbors(adata, n_neighbors=n_neighbors, method='umap', metric=metric, random_state=random_state)
+        sc.tl.umap(adata, min_dist=min_dist, random_state=random_state)
         print(f"UMAP computed with min_dist={min_dist}")
 
         for resolution in resolutions:
             print(f"\nComputing Leiden clustering with resolution={resolution}")
-            sc.tl.leiden(adata, resolution=resolution, flavor="igraph", n_iterations=2, directed=False)
+            sc.tl.leiden(adata, resolution=resolution, flavor="igraph", n_iterations=2, directed=False, random_state=random_state)
             adata.obs['leiden'] = adata.obs['leiden'].astype('category')
 
             # Save AnnData object
