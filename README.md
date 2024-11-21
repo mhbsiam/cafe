@@ -13,9 +13,9 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 2. Select **Download ZIP**.
 3. Save the ZIP file to your computer.
 
-### Step 2: Extract the ZIP File & Install
+### Step 2: Extract the ZIP File & Install the tool
 1. Right-click the file and choose **Extract All** (or use a file extraction tool to unzip it).
-2. After extraction, install using either Pixi or Conda.
+2. After extraction, enter the ./CAFE/ folder. Then, install the tool using either Pixi or Conda.
 
 
 ##
