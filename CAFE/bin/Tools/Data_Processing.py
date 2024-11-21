@@ -126,9 +126,9 @@ def process_csv_files(uploaded_files):
         df = df.dropna()
 
     #Save the combined DataFrame
-    combined_output_path = os.path.join(result_dir, 'combined_updated_files.csv')
-    df.to_csv(combined_output_path, index=False)
-    st.write(f"Combined DataFrame saved to {combined_output_path}")
+    #combined_output_path = os.path.join(result_dir, 'combined_updated_files.csv')
+    #df.to_csv(combined_output_path, index=False)
+    #st.write(f"Combined DataFrame saved to {combined_output_path}")
 
     expr_data = df.drop(columns=['SampleID', 'Group'])
     expr_data = expr_data.select_dtypes(include=[float, int])  # Keep only numeric data
