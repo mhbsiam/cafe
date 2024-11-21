@@ -1,3 +1,9 @@
+![Python Versions](https://img.shields.io/badge/python-3.12.5-blue)
+![License](https://img.shields.io/badge/License-MIT-blue)
+[![Website](https://img.shields.io/badge/website-inprogress-brightgreen)](https://cafe-tlab.com)
+![DOI](https://img.shields.io/badge/DOI-doi.org/10.4049/jimmunol.2400370-blue)
+
+
 ![Logo](CAFE/bin/img/logo.png)
 
 # CAFE (Cell Analyzer for Flow Experiments)
