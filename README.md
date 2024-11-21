@@ -140,6 +140,41 @@ python cafe.py
 - The results are saved in the result directory where the `cafe.py` script was run from.
 
 ##
+## How to run Data Processing step in HPC?
+
+### Steps:
+
+- Download the script found in CAFE/bin/App/hpc_run.py
+- Assign input and output directory
+- Assign parameters. Note that some arguments accept multi-parameters such as Leiden resolution
+- Run the app
+
+### 1. Choose the Parameters
+Decide on the arguments to pass to the script:
+- **`--input`**: Path to the input directory containing the CSV files.
+- **`--output`**: Path to the output directory where results will be saved.
+- **`--pca`**: PCA solver to use (choose from `auto`, `full`, `arpack`, `randomized`, or `none`).
+- **`--cutoff`**: Explained variance cutoff for PCA (e.g., 95).
+- **`--leiden`**: One or more resolutions for Leiden clustering (e.g., `0.5 1.0 2.0`).
+- **`--nneighbor`**: One or more `n_neighbors` values for UMAP and neighbors computation (e.g., `10 20 30`).
+- **`--distance`**: Distance metric to use for neighbors computation (default: `euclidean`).
+- **`--min_dist`**: `min_dist` parameter for UMAP (default: `0.1`).
+
+### 2. Run the Script
+Run the script in your terminal using the following command. For example:
+```bash
+python3 hpc_run.py \
+  --input /path/to/input_dir \
+  --output /path/to/output_dir \
+  --pca auto \
+  --cutoff 95 \
+  --leiden 0.5 1.0 \
+  --nneighbor 15 30 \
+  --distance euclidean \
+  --min_dist 0.1
+```
+
+## 
 ## Tool Dependencies
 
 ```
