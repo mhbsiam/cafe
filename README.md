@@ -1,3 +1,4 @@
+![Logo](CAFE/bin/img/logo.png)
 
 # CAFE (Cell Analyzer for Flow Experiments)
 
