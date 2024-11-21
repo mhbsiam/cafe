@@ -159,7 +159,7 @@ python cafe.py
 
 ### Steps:
 
-- Download the script found in CAFE/bin/App/hpc_run.py
+- Download the standalone script found in CAFE/cafe_hpc.py
 - Assign input and output directory
 - Assign parameters. Note that some arguments accept multi-parameters such as Leiden resolution
 - Run the app
