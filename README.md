@@ -226,3 +226,12 @@ streamlit = "==1.39.0"
 watchdog = "==5.0.2"
 kaleido = "==0.2.1"
 ```
+
+## Citation
+
+For detailed documentation on how to use CAFE, including tutorials and examples, please follow the [tutorial](http://localhost:8501/).
+
+If you use CAFE in your research, please cite our paper:
+
+Vardaman, Donald, Md Akkas Ali, Md Hasanul Banna Siam, Chase Bolding, Harrison Tidwell, Holly R. Stephens, Mallikarjun Patil, and Daniel J. Tyrrell. "Development of a Spectral Flow Cytometry Analysis Pipeline for High-Dimensional Immune Cell Characterization." The Journal of Immunology (2024) [https://doi.org/10.4049/jimmunol.2400370](https://doi.org/10.4049/jimmunol.2400370).
+
