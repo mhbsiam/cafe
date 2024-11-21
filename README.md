@@ -1,6 +1,5 @@
 ![Python Versions](https://img.shields.io/badge/python-3.12.5-blue)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-[![Website](https://img.shields.io/badge/website-inprogress-brightgreen)](https://cafe-tlab.com)
 ![DOI](https://img.shields.io/badge/DOI-doi.org/10.4049/jimmunol.2400370-blue)
 
 
@@ -15,7 +14,7 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 ## How to Download CAFE
 
 ### Step 1: Download the tool as a ZIP file
-1. Click the **Release** button on the right side of this page.
+1. Click the **Releases** button on the right side of this page.
 2. Locate the latest release
 3. Select **CAFE_version.zip** file to download.
 
