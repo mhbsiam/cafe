@@ -65,7 +65,7 @@ st.markdown("---")
 
 st.subheader("How to Run the App: Step-by-Step Guide")
 
-image_path = os.path.join('bin', 'img', 'da_cafe.png')
+image_path = os.path.join('bin', 'img', 'workflow.png')
 st.image(image_path, caption='', use_column_width=True)
 
 st.subheader("01. Preparing the CSV files")
