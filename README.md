@@ -100,6 +100,8 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 
 ## How to Run the App: Step-by-Step Guide
 
+![Logo](CAFE/bin/img/workflow.png)
+
 ### 01. Preparing the CSV Files
 
 1.1 **Perform manual gating and export scaled CSV files**  
