@@ -32,8 +32,12 @@ def clear_memory():
 result_dir = os.path.join(os.getcwd(), 'result')
 os.makedirs(result_dir, exist_ok=True)
 
-image_path = os.path.join('bin', 'img', 'small_logo.png')
+image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
+
+# Display an image
+image_path = os.path.join('bin', 'img', 'logo_v2.png')
+st.image(image_path, caption='', use_column_width=True)
 
 st.title("Data Processing")
 
