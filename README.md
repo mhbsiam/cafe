@@ -3,7 +3,7 @@
 ![DOI](https://img.shields.io/badge/DOI-doi.org/10.4049/jimmunol.2400370-blue)
 
 
-![Logo](CAFE/bin/img/logo_v2.png)
+![Logo](CAFE/bin/img/logo.png)
 
 # CAFE (Cell Analyzer for Flow Experiment)
 
