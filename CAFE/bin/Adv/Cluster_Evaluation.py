@@ -15,11 +15,12 @@ from scipy.spatial.distance import cdist
 # Set Scanpy settings
 sc.settings.n_jobs = -1
 
-#image_path = os.path.join('bin', 'CAFE_logo.png')
-#st.image(image_path, caption='', use_column_width=True)
-
-image_path = os.path.join('bin', 'img', 'small_logo.png')
+image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
+
+# Display an image
+image_path = os.path.join('bin', 'img', 'logo_v2.png')
+st.image(image_path, caption='', use_column_width=True)
 
 # Define the result directory at the beginning
 result_dir = os.path.join(os.getcwd(), 'result')
