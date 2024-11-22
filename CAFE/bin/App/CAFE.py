@@ -29,7 +29,7 @@ def clear_memory():
 # Display an image
 image_path = os.path.join('bin', 'img', 'logo.png')
 st.image(image_path, caption='', use_column_width=True)
-image_path2 = os.path.join('bin', 'img', 'small_logo.png')
+image_path2 = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path2)
 
 # Define the result directory at the beginning
