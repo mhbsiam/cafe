@@ -37,7 +37,7 @@ result_dir = os.path.join(os.getcwd(), 'result')
 os.makedirs(result_dir, exist_ok=True)
 
 # Title and subtitle with the CAFE acronym
-st.title("Cell Analyzer for Flow Experiments")
+st.title("Cell Analyzer for Flow Experiment")
 st.subheader("Explore and analyze flow cytometry data interactively")
 
 st.markdown(
