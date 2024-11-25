@@ -20,9 +20,8 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 
 ### Step 2: Extract the ZIP File & Install the tool
 1. Right-click the file and choose **Extract All** (or use a file extraction tool to unzip it).
-2. After extraction, navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, conda.yaml etc.
-3. Open terminal app, or Powershell(in windows).
-4. Then, run the tool using either Pixi or Conda.
+2. After extraction, use cursor to navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, conda.yaml etc.
+3. Then, follow the instructions to run the tool using Pixi or Conda.
 
 
 ##
@@ -30,11 +29,13 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 
 ### Method 1: Pixi Way
 
-1. **Download the CAFE tool from Github**  
-   Then open your terminal and navigate to the folder containing the `cafe.py` file:
+1. **Make sure you are in the correct directory (./CAFE/)**  
+   If unsure, open your terminal app (or Powershell in Windows) and navigate to the folder containing the `cafe.py` file by typing:
    ```bash
-   cd ./path/to/cafe
+   cd ./path/to/CAFE
    ```
+   **Note:** Windows uses the backslash ( \ ) for the file system delimiter. For example, if the path to CAFE in Linux/macOS is `./documents/CAFE`, it will be `.\documents\CAFE` in Windows.
+
 
 2. **Install Pixi**  
    Run the following command to install Pixi for Mac/Linux:
@@ -62,10 +63,10 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 1. **Ensure Anaconda is installed**  
    If you don't have Anaconda installed, download it from [here](https://www.anaconda.com/download/success).
 
-2. **Download the CAFE tool from Github**  
-   Then open your terminal and navigate to the folder containing the `cafe.py` file:
+2. **Make sure you are in the correct directory (./CAFE/)**  
+   If unsure, open your terminal app (or Powershell in Windows) and navigate to the folder containing the `cafe.py` file by typing:
    ```bash
-   cd ./path/to/cafe
+   cd ./path/to/CAFE
    ```
 
 3. **Create the Conda environment**  
