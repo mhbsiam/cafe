@@ -26,6 +26,7 @@ import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import plotly.io as pio
 
 #Statistics
 from scipy import stats
@@ -52,16 +53,12 @@ import matplotlib.cm as cm
 import cmasher as cmr
 
 plt.rcParams['font.family'] = 'Arial'
-
-import plotly.io as pio
-
 pio.templates["custom"] = pio.templates["plotly"]
 pio.templates["custom"].layout.font.family = "Arial"
-
 pio.templates.default = "custom"
 
-result_dir = os.path.join(os.getcwd(), 'result')
-os.makedirs(result_dir, exist_ok=True)
+#result_dir = os.path.join(os.getcwd(), 'result')
+#os.makedirs(result_dir, exist_ok=True)
 
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
@@ -267,14 +264,11 @@ if option == "Load AnnData":
 
             expression_data = expression_data.astype(float)
 
-            # Step 3: Scale each marker independently across clusters
             scaled_expression = expression_data.apply(lambda x: (x - x.mean()) / x.std() if x.std() != 0 else x - x.mean(), axis=1).fillna(0)
 
-            # Step 4: Hierarchical clustering on markers only
             gene_linkage = sch.linkage(scaled_expression, method='average')
             ordered_genes = [scaled_expression.index[i] for i in sch.dendrogram(gene_linkage, no_plot=True)['leaves']]
 
-            # Step 5: Create and display the heatmap using Plotly
             fig = px.imshow(
                 scaled_expression.loc[ordered_genes, clusters],
                 labels=dict(x="Cluster", y="Marker", color="Scaled Expression"),
@@ -311,10 +305,7 @@ if option == "Load AnnData":
             st.download_button(label="Download Dot Plot", data=svg_buffer, file_name="dotplot.svg", mime="image/svg+xml")
             plt.close(fig2)
 
-            #----------------------------
-
         st.divider()
-
 
         colors_tab20b = list(plt.get_cmap('tab20b').colors)
         colors_tab20c = list(plt.get_cmap('tab20c').colors)
@@ -328,13 +319,8 @@ if option == "Load AnnData":
 
         with tab1:
 
-            import io
-            import zipfile
-            import random
-            import streamlit as st
-
             # Combined UMAP Plots
-            with st.form(key='combined_umap_form'):
+            with st.form(key='Plot1'):
                 st.write("Combined UMAP Plots:")
 
                 umap_width = st.slider("Select plot width", min_value=5, max_value=20, value=8, key="umap_width")
@@ -466,7 +452,7 @@ if option == "Load AnnData":
 
         with tab2:
 
-            with st.form(key='marker_expression_form'):
+            with st.form(key='Plot2'):
                 st.write("Marker Expression UMAPs:")
 
                 split_by_group = st.radio("Split by group?", ('No', 'Yes'), index=0, key='split_by_group')
@@ -653,7 +639,7 @@ if option == "Load AnnData":
 
         with tab3:
 
-            with st.form(key='umap_form'):
+            with st.form(key='Plot3'):
                 unique_clusters = sorted(adata.obs[cluster_col].unique())
                 selected_clusters = st.multiselect(
                     f"Select one or more {'cell types' if cluster_col == 'cell_type' else 'clusters'}",
@@ -766,7 +752,7 @@ if option == "Load AnnData":
 
         with tab4:
 
-            with st.form(key='umap_form_24'):
+            with st.form(key='Plot4'):
                 unique_markers = adata.var_names
                 selected_marker = st.selectbox(
                     "Select a marker to plot",
@@ -856,7 +842,7 @@ if option == "Load AnnData":
 
             new_cmap = ListedColormap(colors_combined)
 
-            with st.form(key='UMAP_sample_form_2'):
+            with st.form(key='Plot5'):
                 st.write("UMAP of each sample:")
 
                 dot_size = st.slider("Select dot size", min_value=1, max_value=100, value=15, key="sample_umap_dot_size_2")
@@ -923,8 +909,8 @@ if option == "Load AnnData":
                     mime="application/zip",
                 )
 
+        st.divider()
 
-        st.write("--------------------------------------------------------------------------------------------------------")
         st.subheader("Cells and Clusters Analysis:")
 
         tab6, tab7, tab8, tab9 = st.tabs(["Plot6", "Plot7", "Plot8", "Plot9"])
@@ -940,7 +926,7 @@ if option == "Load AnnData":
 
         with tab6:
 
-            with st.form(key='heatmap_form'):
+            with st.form(key='Plot6'):
                 st.write("Heatmap Plot:")
 
                 heatmap_width = st.slider("Select plot width", min_value=1, max_value=20, value=8, key="heatmap_width")
@@ -1015,7 +1001,7 @@ if option == "Load AnnData":
 
         with tab7:
 
-            with st.form(key='combined_bar_chart_form_'):
+            with st.form(key='Plot7'):
                 st.write("Combined Bar Chart Plot:")
 
                 chart_width = st.slider("Select chart width", min_value=400, max_value=1500, value=400, key="chart_width")
@@ -1154,7 +1140,7 @@ if option == "Load AnnData":
 
         with tab8:
 
-            with st.form(key='cell_percentage_count_form'):
+            with st.form(key='Plot8'):
                 st.write("Total Cell Percentage and Count Plots by Group:")
 
                 plot_width = st.slider("Select plot width", min_value=5, max_value=20, value=12, key="plot_width")
@@ -1268,7 +1254,7 @@ if option == "Load AnnData":
         cluster_col = 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
         with tab9:
 
-            with st.form(key='cluster_comparison_form'):
+            with st.form(key='Plot9'):
                 st.write(f"Compare Relative Abundance of Cells in Selected {cluster_col.capitalize()}")
 
                 selected_cluster_1 = st.selectbox(f"Select {cluster_col.capitalize()} 1", options=adata.obs[cluster_col].unique())
@@ -1338,8 +1324,7 @@ if option == "Load AnnData":
                 st.write(f"Total number of cells in {cluster_col.capitalize()} {selected_cluster_1}: {total_cells_cluster_1}")
                 st.write(f"Total number of cells in {cluster_col.capitalize()} {selected_cluster_2}: {total_cells_cluster_2}")
 
-
-        st.write("--------------------------------------------------------------------------------------------------------")
+        st.divider()
 
         st.subheader("Marker Expression Analysis:")
 
@@ -1349,7 +1334,7 @@ if option == "Load AnnData":
 
         with tab10:
 
-            with st.form(key='dotplot_dendrogram_form'):
+            with st.form(key='Plot10'):
                 st.write(f"All Markers vs All {cluster_col.capitalize()} Dot Plot:")
 
                 dotplot_width = st.slider("Select plot width for Dot Plot", min_value=1, max_value=20, value=10, key="dotplot_width")
@@ -1425,7 +1410,7 @@ if option == "Load AnnData":
 
         with tab11:
 
-            with st.form(key="matrixmap_form"):
+            with st.form(key="Plot11"):
                 st.write(f"All Markers vs All {cluster_col.capitalize()} Matrixplot")
 
                 expression_method = st.radio("Select Expression Calculation Method", options=["Mean", "Median"])
@@ -1522,7 +1507,7 @@ if option == "Load AnnData":
 
         with tab12:
 
-            with st.form(key='kde_plot_form'):
+            with st.form(key='Plot12'):
                 st.write(f"One Marker vs All Sample/Group/{cluster_col.capitalize()} Histogram Plot:")
 
                 chart_width = st.slider("Select total plot width", min_value=5.0, max_value=20.0, value=10.0, step=0.1, key="kde_chart_width")
@@ -1592,7 +1577,7 @@ if option == "Load AnnData":
 
         with tab13:
 
-            with st.form(key='kde_plot_form__grp'):
+            with st.form(key='Plot_13'):
                 st.write(f"One Marker vs Group Based Histogram Plot ({cluster_col.capitalize()})")
 
                 chart_width = st.slider("Select total plot width", min_value=5.0, max_value=40.0, value=20.0, step=0.1, key="kde_chart_width_grp")
@@ -1694,7 +1679,7 @@ if option == "Load AnnData":
 
         with tab14:
 
-            with st.form(key='bar_plot_form_50'):
+            with st.form(key='Plot_14'):
                 st.write("One Marker vs All Sample/Group/Leiden Cluster Bar Plot:")
 
                 chart_width = st.slider("Select total plot width", min_value=2.0, max_value=20.0, value=10.0, step=0.1, key="bar_chart_width_50")
@@ -1832,7 +1817,7 @@ if option == "Load AnnData":
                     mime=f"image/{bar_plot_file_format.lower()}",
                 )
 
-                # Create a ZIP file containing all plots
+                # ZIP file containing all plots
                 zip_buffer = io.BytesIO()
                 with zipfile.ZipFile(zip_buffer, "w") as zip_file:
                     zip_file.writestr(
@@ -1861,7 +1846,7 @@ if option == "Load AnnData":
 
         with tab15:
 
-            with st.form(key='Marker_Expression_Profile_for_Selected_Cluster'):
+            with st.form(key='Plot_15'):
                 st.write(f"One {cluster_col.capitalize()} vs All Markers Expression:")
 
                 cluster_selected = st.selectbox(f'Select a {cluster_col}:', adata.obs[cluster_col].unique())
@@ -2108,7 +2093,7 @@ if option == "Load AnnData":
 
         with tab16:
 
-            with st.form(key='group_violin_plot_form'):
+            with st.form(key='Plot_16'):
                 st.write(f"Grouped Violin Plot for Expression of a Selected Marker by Group and {cluster_col.capitalize()}")
 
                 selected_marker = st.selectbox("Select a marker to plot", options=adata.var_names)
@@ -2184,7 +2169,7 @@ if option == "Load AnnData":
 
         with tab17:
 
-            with st.form(key='bar_plot_cluster_form_'):
+            with st.form(key='Plot_17'):
                 st.write(f"One {cluster_col.capitalize()} vs Combination of Markers")
 
                 font_size = st.slider("Select the font size for labels", min_value=6, max_value=20, value=10, step=1, key="bar_font_size_")
@@ -2257,7 +2242,7 @@ if option == "Load AnnData":
 
         with tab18:
 
-            with st.form(key='bar_plot_group_form_13'):
+            with st.form(key='Plot_18'):
                 st.write("Group vs Combination of Markers")
 
                 font_size = st.slider("Select the font size for labels", min_value=6, max_value=20, value=10, step=1, key="bar_font_size_group_13")
@@ -2332,7 +2317,7 @@ if option == "Load AnnData":
                         mime="application/pdf",
                     )
 
-        st.write("-------------")
+        st.divider()
 
         st.subheader("Additional Plots")
         tab19, tab20, tab21, tab22, tab23, tab24, tab25, tab26, tab27, tab28, tab29, tab30 = st.tabs(["Plot19", "Plot20", "Plot21", "Plot22", "Plot23", "Plot24", "Plot25", "Plot26", "Plot27", "Plot28", "Plot29", "Plot30"])
@@ -2341,7 +2326,7 @@ if option == "Load AnnData":
 
         with tab19:
 
-            with st.form(key='cluster_comparison_form_16'):
+            with st.form(key='Plot_19'):
                 st.write(f"Compare Markers Across Three {cluster_col.capitalize()} Clusters")
 
                 selected_cluster_1 = st.selectbox(f"Select {cluster_col.capitalize()} Cluster 1", options=adata.obs[cluster_col].unique(), key='cluster_1')
@@ -2543,7 +2528,7 @@ if option == "Load AnnData":
 
         with tab20:
 
-            with st.form(key='Identify cell with marker combination'):
+            with st.form(key='Plot_20'):
                 st.write("Identify Clusters with Marker Combination")
 
                 def calexpression(data, method):
@@ -2612,7 +2597,7 @@ if option == "Load AnnData":
 
         with tab21:
 
-            with st.form(key='Marker_Expression_Profile_for_Selected_Cluster_'):
+            with st.form(key='Plot_21'):
                 st.write("One Cluster vs All Markers Expression:")
 
                 expression_method = st.radio('Select expression calculation method:', ('Mean', 'Median'))
@@ -2741,7 +2726,7 @@ if option == "Load AnnData":
         cluster_col = 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
         with tab22:
 
-            with st.form(key='group_selection_form'):
+            with st.form(key='Plot_22'):
                 group1 = st.selectbox('Select Group 1:', adata.obs['Group'].unique())
                 group2 = st.selectbox('Select Group 2:', adata.obs['Group'].unique())
 
@@ -2794,7 +2779,7 @@ if option == "Load AnnData":
 
         with tab23:
 
-            with st.form(key='Sankey_form_01'):
+            with st.form(key='Plot_23'):
                 st.subheader("Sankey Diagram for Leiden Clusters and Groups")
 
                 def hex_to_rgba(hex_color, alpha=0.6):
@@ -2899,7 +2884,7 @@ if option == "Load AnnData":
 
         with tab24:
 
-            with st.form("sankey_form_02"):
+            with st.form("Plot_24"):
                 selected_markers = st.multiselect("Select up to 10 markers", adata.var_names, max_selections=10)
                 threshold = st.selectbox("Select expression threshold", [1, 100, 1000, 10000])
                 cell_type_column = "cell_type" if "cell_type" in adata.obs.columns else "leiden"
@@ -2984,7 +2969,7 @@ if option == "Load AnnData":
 
             marker_options = list(adata.var_names)
 
-            with st.form(key="kde_form"):
+            with st.form(key="Plot_25"):
                 st.write("Select two markers for KDE plot:")
 
                 marker1 = st.selectbox("Marker 1", options=marker_options, key="marker1")
@@ -3098,7 +3083,7 @@ if option == "Load AnnData":
                 'YlGn', 'YlGnBu', 'YlOrBr', 'YlOrRd', 'coolwarm', 'Spectral'
             ]
 
-            with st.form(key='cluster_vs_cells_form'):
+            with st.form(key='Plot_26'):
                 st.write("Plot Total Number of Cells vs Clusters:")
 
                 chart_width = st.slider("Select chart width", min_value=1.0, max_value=10.0, value=4.5, step=0.1, key="cell_vs_cluster_chart_width")
@@ -3146,7 +3131,7 @@ if option == "Load AnnData":
 
         with tab27:
 
-            with st.form(key='cluster_comparison_form_012'):
+            with st.form(key='Plot_27'):
                 st.write("Compare Relative Abundance of Cells in Selected Clusters")
 
                 marker_x = st.selectbox("Select Marker 1", options=adata.var_names)
@@ -3308,7 +3293,7 @@ if option == "Load AnnData":
 
         with tab28:
 
-            with st.form(key='correlation_matrix_plot_form'):
+            with st.form(key='Plot_28'):
                 st.write("Correlation Matrix Plot:")
 
                 chart_width = st.slider("Select chart width", min_value=1.0, max_value=30.0, value=10.0, step=0.1, key="correlation_matrix_chart_width")
@@ -3351,7 +3336,7 @@ if option == "Load AnnData":
         with tab29:
 
 
-            with st.form(key='cluster_cell_count_form'):
+            with st.form(key='Plot_29'):
                 st.write("Plot Total Number of Cells in Each Cluster by Group:")
 
                 cluster = st.selectbox(f"Select {cluster_col.capitalize()} Cluster", options=adata.obs[cluster_col].unique(), key="cluster_selector_ab")
@@ -3451,7 +3436,7 @@ if option == "Load AnnData":
 
         with tab30:
 
-            with st.form(key='violin_and_bar_plot_form'):
+            with st.form(key='Plot_30'):
                 st.write("Violin Plot and Bar Plot:")
 
                 chart_width = st.slider("Select chart width", min_value=1.0, max_value=10.0, value=4.5, step=0.1, key="violin_chart_width")
@@ -3536,14 +3521,15 @@ if option == "Load AnnData":
                     mime="application/zip",
                 )
 
-        st.write("--------------------------------")
+        st.divider()
+
         st.subheader("Statistics")
 
         tab31, tab32, tab33, tab34, tab35, tab36, tab37 = st.tabs(["Plot31", "Plot32", "Plot33", "Plot34", "Plot35", "Plot36", "Plot37"])
 
         with tab31:
 
-            with st.form(key="cell_type_group_comparison_form_"):
+            with st.form(key="Plot_31"):
                 if 'cell_type' in adata.obs.columns:
                     comparison_options = adata.obs['cell_type'].unique()
                     comparison_label = "Select Cell Types:"
@@ -3731,7 +3717,7 @@ if option == "Load AnnData":
 
         with tab32:
 
-            with st.form(key="cluster_marker_analysis"):
+            with st.form(key="Plot_32"):
                 st.write("Example: CD8+ expressing T cells compared between groups for Marker(hi) expression")
                 selected_clusters = st.multiselect(
                     f"Select {cluster_label} to include in analysis:",
@@ -3876,7 +3862,7 @@ if option == "Load AnnData":
 
         cluster_label = 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
         with tab33:
-            with st.form(key='effect_size_form'):
+            with st.form(key='Plot_33'):
                 group1 = st.selectbox('Select Control Group:', adata.obs['Group'].unique())
                 group2 = st.selectbox('Select Treatment Group:', adata.obs['Group'].unique())
                 effect_size_choice = st.radio('Choose Effect Size Calculation:', ("Cohen's d", "Cliff's Delta"))
@@ -3963,7 +3949,7 @@ if option == "Load AnnData":
         cluster_col = 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
 
         with tab34:
-            with st.form("contingency_table_form"):
+            with st.form("Plot_34"):
                 st.write("**Is there a statistically significant association between clusters and groups?**")
 
                 submitted = st.form_submit_button("Run Chi-Square Test")
@@ -4053,7 +4039,7 @@ if option == "Load AnnData":
                     st.write("There is no statistically significant association between clusters and groups (p >= 0.05).")
 
         with tab35:
-            with st.form("analysis_form"):
+            with st.form("Plot_35"):
                 st.subheader("Normality test: Choose Analysis")
 
                 analysis_choice = st.selectbox("Choose analysis by:", ["Group", "Leiden Clusters"])
@@ -4147,7 +4133,7 @@ if option == "Load AnnData":
                     st.write('Pro tip: In case of confusion between visual inspection and statistical test result, prefer Shapiro-Wilk test result as it is more sensitive.')
 
         with tab36:
-            with st.form("correlation_form_"):
+            with st.form("Plot_36"):
                 color_map = st.selectbox(
                     "Select Color Map",
                     options=["coolwarm", "viridis", "plasma", "inferno", "magma", "cividis", "Blues", "Reds", "Greens"],
@@ -4215,7 +4201,7 @@ if option == "Load AnnData":
                 )
 
         with tab37:
-            with st.form("correlation_form_n"):
+            with st.form("Plot_37"):
                 color_map = st.selectbox(
                     "Select Color Map",
                     options=["coolwarm", "viridis", "plasma", "inferno", "magma", "cividis", "Blues", "Reds", "Greens"],

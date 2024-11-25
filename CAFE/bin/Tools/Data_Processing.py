@@ -29,8 +29,8 @@ sc.settings.n_jobs = -1
 def clear_memory():
     gc.collect()
 
-result_dir = os.path.join(os.getcwd(), 'result')
-os.makedirs(result_dir, exist_ok=True)
+#result_dir = os.path.join(os.getcwd(), 'result')
+#os.makedirs(result_dir, exist_ok=True)
 
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
@@ -135,7 +135,7 @@ def process_csv_files(uploaded_files):
     #st.write(f"Combined DataFrame saved to {combined_output_path}")
 
     expr_data = df.drop(columns=['SampleID', 'Group'])
-    expr_data = expr_data.select_dtypes(include=[float, int])  # Keep only numeric data
+    expr_data = expr_data.select_dtypes(include=[float, int])
 
     metadata = df[['SampleID', 'Group']]
     expr_data.index = expr_data.index.astype(str)
@@ -199,7 +199,7 @@ if option == "Load CSV files":
 
             variance_threshold = st.slider(
                 "Select the explained variance threshold (%) to retain",
-                min_value=70, max_value=99, value=90, key='variance_threshold'
+                min_value=70, max_value=99, value=95, key='variance_threshold'
             )
 
             apply_pca_button = st.form_submit_button(label='Apply PCA')
@@ -331,7 +331,7 @@ if option == "Load CSV files":
             selected_flavor = st.selectbox("Select a flavor for leiden community detection", options=flavor_options, index=0)
 
             dim_option = ['None', 'X_pca', 'X_umap']
-            selected_dim = st.selectbox("Select a dimension reduction metric to use", options=dim_option, index=0, help="Select X_pca if you have reduced the data using PCA")
+            selected_dim = st.selectbox("Select a dimension reduction metric to use", options=dim_option, index=1, help="Select None if you have not reduced the data using PCA")
 
             metric_options = ['euclidean', 'manhattan', 'cosine', 'correlation', 'minkowski']
             selected_metric = st.selectbox("Select distance metric for neighbors computation",
