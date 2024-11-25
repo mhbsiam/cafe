@@ -38,7 +38,8 @@ st.title("Cell Analyzer for Flow Experiment")
 st.subheader("Explore and analyze flow cytometry data interactively")
 
 st.markdown(
-    "This tool will analyze immune cells from spectral flow cytometry and generate publishable figures. For detailed documentation, please follow the tutorial.")
+    "This tool will analyze immune cells from spectral flow cytometry and generate publishable figures. For detailed documentation, follow our [GitHub page](https://github.com/mhbsiam/cafe)
+")
 st.markdown("---")
 
 st.markdown("## Citation")
