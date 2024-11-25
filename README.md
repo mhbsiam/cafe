@@ -14,7 +14,7 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 ## How to Download CAFE
 
 ### Step 1: Download the tool as a ZIP file
-1. Click the **Releases** button on the right side of this page.
+1. Click the [Releases](https://github.com/mhbsiam/cafe/releases) button on the right side of this page.
 2. Locate the latest release
 3. Select **CAFE_version.zip** file to download.
 
