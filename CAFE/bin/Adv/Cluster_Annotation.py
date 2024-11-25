@@ -16,13 +16,12 @@ import zipfile
 import tempfile
 
 
-result_dir = os.path.join(os.getcwd(), "result", "annotated")
-os.makedirs(result_dir, exist_ok=True)
+#result_dir = os.path.join(os.getcwd(), "result", "annotated")
+#os.makedirs(result_dir, exist_ok=True)
 
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
 
-# Display an image
 image_path = os.path.join('bin', 'img', 'logo_v2.png')
 st.image(image_path, caption='', use_column_width=True)
 
@@ -55,7 +54,6 @@ if uploaded_file and submit_upload:
         legend_loc='on data'
     )
 
-    # Remove the x and y axis frames
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_visible(False)
