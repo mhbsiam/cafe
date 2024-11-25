@@ -15,8 +15,8 @@ import random
 
 sc.settings.n_jobs = -1
 
-result_dir = os.path.join(os.getcwd(), 'result')
-os.makedirs(result_dir, exist_ok=True)
+#result_dir = os.path.join(os.getcwd(), 'result')
+#os.makedirs(result_dir, exist_ok=True)
 
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
