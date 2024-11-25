@@ -41,11 +41,11 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
    ```bash
    curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.34.0 bash
    ```
-   For Windows, first run the following code:
+   For Windows, (1) first run the following code:
    ```bash
    iwr -useb https://pixi.sh/install.ps1 | iex
    ```
-   Then run the code below to restore Pixi to a specific version:
+   (2) Then run the code below to restore Pixi to a specific version:
    ```bash
    pixi self-update --version 0.34.0
    ```
