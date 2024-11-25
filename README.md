@@ -50,13 +50,7 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
    pixi self-update --version 0.34.0
    ```
 
-3. **Install CAFE using Pixi**  
-   Type:
-   ```bash
-   pixi install
-   ```
-
-4. **Run the CAFE tool**  
+3. **Run the CAFE tool**  
    Run the tool by typing:
    ```bash
    pixi run cafe
