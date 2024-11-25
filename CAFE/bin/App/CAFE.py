@@ -22,21 +22,18 @@ from scipy.stats import ttest_ind, mannwhitneyu
 
 sc.settings.n_jobs = -1
 
-# Clear memory
 def clear_memory():
     gc.collect()
 
-# Display an image
 image_path = os.path.join('bin', 'img', 'logo.png')
 st.image(image_path, caption='', use_column_width=True)
 image_path2 = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path2)
 
 # Define the result directory at the beginning
-result_dir = os.path.join(os.getcwd(), 'result')
-os.makedirs(result_dir, exist_ok=True)
+#result_dir = os.path.join(os.getcwd(), 'result')
+#os.makedirs(result_dir, exist_ok=True)
 
-# Title and subtitle with the CAFE acronym
 st.title("Cell Analyzer for Flow Experiment")
 st.subheader("Explore and analyze flow cytometry data interactively")
 
@@ -44,7 +41,6 @@ st.markdown(
     "This tool will analyze immune cells from spectral flow cytometry and generate publishable figures. For detailed documentation, please follow the tutorial.")
 st.markdown("---")
 
-# Documentation and citation section
 st.markdown("## Citation")
 st.markdown("""
 If you use CAFE in your research, please cite our paper:
@@ -57,7 +53,6 @@ st.markdown("---")
 image_path = os.path.join('bin', 'img', 'uab.png')
 st.image(image_path, caption='', use_column_width=True)
 
-# Display an image
 image_path = os.path.join('bin', 'img', 'funding.png')
 st.image(image_path, caption='', use_column_width=True)
 
@@ -86,7 +81,6 @@ st.markdown("Here’s an example of how your CSV file should look like, with mar
 
 import pandas as pd
 
-# Data in dictionary format
 data = {
     "CD27": [27257.3, 16917.6, 47378.3, 1769.79, 40472.1, 487.425, 31111.4, -249.461, 18263.4],
     "CD38": [5442.59, 7401.0, 4412.47, 54090.1, 2639.16, 23893.5, 2010.18, 32396.4, 455.373],
@@ -102,7 +96,6 @@ data = {
     "CD56": [1316.62, -686.368, 2726.43, 6331.52, 960.926, 9389.31, 1778.75, 17000.4, 1764.66],
 }
 
-# Create a DataFrame
 df = pd.DataFrame(data)
 st.dataframe(df)
 
