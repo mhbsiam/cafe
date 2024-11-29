@@ -38,8 +38,7 @@ st.title("Cell Analyzer for Flow Experiment")
 st.subheader("Explore and analyze flow cytometry data interactively")
 
 st.markdown(
-    "This tool will analyze immune cells from spectral flow cytometry and generate publishable figures. For detailed documentation, follow our [GitHub page](https://github.com/mhbsiam/cafe)
-")
+    "This tool will analyze immune cells from spectral flow cytometry and generate publishable figures. For detailed documentation, follow our [GitHub page](https://github.com/mhbsiam/cafe)")
 st.markdown("---")
 
 st.markdown("## Citation")
@@ -115,13 +114,5 @@ pixi run cafe (if you have installed via pixi)
 
 st.markdown("**⚡Pro tip: If you want to restart the program, a quicker approach is to clear cache from the top right settings menu, and reload the page.**")
 
-st.subheader("03. Load files")
-st.markdown("You have the option to select the CSV files, or if you have already generated AnnData containing Leiden Clusters, you can load the AnnData.")
-st.markdown("If you need to increase the upload file size limit, edit cafe.py file and save.")
-st.markdown("Example:")
-st.code('''cli.main_run([cafe_path, "--server.maxUploadSize", "5000"])''')
-st.markdown("This will increase the upload size to 5GB")
-st.markdown("**⚡Pro tip: Avoid increasing server upload size unless you need to since this will cause higher memory usage.**")
-
-st.subheader("04. Follow on-screen options")
+st.subheader("03. Follow on-screen options")
 st.markdown("Use Buttons, Sliders and Drop down menus to navigate through the app")
