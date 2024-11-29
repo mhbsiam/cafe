@@ -69,7 +69,7 @@ st.image(image_path, caption='', use_column_width=True)
 
 
 st.title("Visualization")
-st.write('*The app includes visualization options such as UMAP plots, marker expression plots, heatmaps, dendogram, dotplots, and barplots with user-adjustable settings like plot dimensions, dot size, and colormap selection. It enables users to compare markers, clusters and saves the figures to the current directory/result folder.*')
+st.write('*The app includes visualization options such as UMAP plots, marker expression plots, heatmaps, dendrogram, dotplots, and barplots with user-adjustable settings like plot dimensions, dot size, and colormap selection. It enables users to compare markers, clusters and saves the figures to the current directory/result folder.*')
 
 option = st.radio(
     "Choose your option:",
