@@ -1,7 +1,7 @@
 [project]
 name = "cafe-app"
 version = "1.0.0"
-description = "Spectral FlowCytometry visualization and analysis tools"
+description = "Spectral FlowCytometry visualization and analysis tool"
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 
@@ -18,21 +18,13 @@ numpy = "==1.26.4"
 pandas = "==2.2.3"
 scipy = "==1.14.1"
 pyarrow = "==18.0.0"
-
-# Statistical analysis
 scanpy = "==1.10.3"
 cliffs-delta = "==1.0.0"
-
-# Visualization libraries
 matplotlib = "==3.9.2"
 seaborn = "==0.13.2"
 plotly = "==5.24.1"
 cmasher = "==1.9.0"
-
-# Graph processing
 igraph = "==0.10.8"
-
-# Web app and utilities
 streamlit = "==1.39.0"
 watchdog = "==5.0.2"
 kaleido = "==0.2.1"
