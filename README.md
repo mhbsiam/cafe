@@ -138,8 +138,10 @@ Data accessible at FlowRepository: FR-FCM-Z3WR
 ### 02. Running CAFE
 
 ```python
-# 2.1 Navigate to the tool’s directory
-# Tip: Navigate to the directory where your CAFE tool’s Python file (cafe.py) is located.
+
+# 2.0 Open terminal app (or Anaconda Powershell or Windows Powershell)
+
+# 2.1 Navigate to the directory where your CAFE tool’s Python file (cafe.py) is located.
 cd ./path/to/cafe
 
 # 2.2 Run the tool with pixi
@@ -220,9 +222,9 @@ kaleido = "==0.2.1"
 ```
 
 ##
-## System Requirements
+## System Requirements 
 
-A Mac/Linux-based operating system with at least 16GB of RAM is recommended for running CAFE. 
+![Logo](CAFE/bin/img/os_selection.png)
 
 ## Known Issues
 
