@@ -19,7 +19,7 @@ st.logo(image_path)
 
 image_path = os.path.join('bin', 'img', 'logo_v2.png')
 st.image(image_path, caption='', use_container_width=True)
-
+st.warning("This module is only available for offline use. Please download the App from https://github.com/mhbsiam/cafe/releases and run it locally.")
 st.title("Evaluate Leiden Clustering")
 st.write('*This module allows creating multiple Leiden clustering files with varied paremeters. Each adata is saved and can be used to evaluate clustering quality.*')
 
@@ -204,15 +204,4 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
 
 
 if st.button('Run Analysis'):
-    with st.spinner("Working..."):
-        if not input_dir or not output_dir:
-            st.error("Please specify both input and output directories.")
-        else:
-            adata = process_csv_files(input_dir, output_dir)
-
-            if adata is not None:
-                if pca_solver != 'none':
-                    perform_pca(adata, pca_solver, variance_threshold, output_dir)
-
-                leiden_resolutions_list = [float(res) for res in leiden_resolutions.split(',')]
-                run_umap_leiden(adata, leiden_resolutions_list, [n_neighbors], min_dist, distance_metric, output_dir, leiden_flavor)
+    st.warning("This module is only available for offline use. Please download the App from https://github.com/mhbsiam/cafe/releases and run it locally.")
