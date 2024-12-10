@@ -1,6 +1,6 @@
 import streamlit as st
 
-page1 = st.Page("App/CAFE.py", default=True)
+page1 = st.Page("web/CAFE.py", default=True)
 page2 = st.Page("Tools/Data_Processing.py")
 page3 = st.Page("Tools/Visualization.py")
 

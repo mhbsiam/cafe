@@ -38,7 +38,7 @@ st.image(image_path, caption='', use_container_width=True)
 st.title("Data Processing")
 
 st.markdown(
-    "*In this section, the app will read and process the uploaded files, combine them into a single DataFrame, and create an AnnData object for further analysis. It includes functionality for performing PCA, batch correction, UMAP, and unsupervised Leiden clustering. Results such as cluster counts, frequencies, and median fluorescence intensities are saved to CSV files, and the processed AnnData object is saved to the current directory/result folder. The resulting AnnData (h5ad file) can be used to create figures and run statistics.*")
+    "*In this section, the app will read and process the uploaded files, combine them into a single DataFrame, and create an AnnData object for further analysis. It includes functionality for performing PCA, batch correction, UMAP, and unsupervised Leiden clustering. Results such as cluster counts, frequencies, and median fluorescence intensities are saved to CSV files, and the processed AnnData (.h5ad) file can be downloaded and be used to create figures and run statistics.*")
 
 option = st.radio(
     "Choose your option:",
@@ -389,7 +389,7 @@ if option == "Load CSV files":
                             temp_path = temp_file.name
                             adata.write(temp_path)
 
-                        zip_file.write(temp_path, arcname=f"adata_flowanalysis_{random_number}.h5ad")
+                        zip_file.write(temp_path, arcname=f"adata_{resolution}_{random_number}.h5ad")
                         os.remove(temp_path)
 
                         cluster_sample_counts = adata.obs.groupby(['leiden', 'SampleID']).size().unstack(fill_value=0)
