@@ -9,6 +9,7 @@
 
 CAFE is an open-source, free, no-code, web-app platform for high-dimensional spectral flow cytometry data (SCF) analysis. CAFE has been developed in Python and it can run seamlessly on regular computers operating on either Windows, macOS, or Linux. The application will allow the analysis and visualization of SFC data to produce high-resolution publication-ready figures that support reproducible research of immune cell populations.
 
+A lightweight demo version of CAFE is available at [website](https://tyrrell-lab.com)
 
 ##
 ## How to Download CAFE
@@ -201,37 +202,41 @@ python3 hpc_run.py \
 
 ```
 python = "==3.12.5"
-pip = "*"
-
-#Data processing
 numpy = "==1.26.4"
 pandas = "==2.2.3"
 scipy = "==1.14.1"
 pyarrow = "==18.0.0"
-
-#Statistics
 statsmodels = "==0.14.4"
 scanpy = "==1.10.3"
 cliffs-delta = "==1.0.0"
-
-#Visualization
 matplotlib = "==3.9.2"
 seaborn = "==0.13.2"
 plotly = "==5.24.1"
 cmasher = "==1.9.0"
-
-#Graph processing
 igraph = "==0.10.8"
-
-#Utilities
 streamlit = "==1.39.0"
 watchdog = "==5.0.2"
 kaleido = "==0.2.1"
 ```
 
+##
+## System Requirements
+
+A Mac/Linux-based operating system with at least 16GB of RAM is recommended for running CAFE. 
+
+## Known Issues
+
+Windows OS has known issues with Scanpy and thus generates a higher number of clusters with a given Leiden resolution value. A numpy conflict may provide a value error message, ignore the warning. For optimal performance, consider using WSL to download the CAFE folder from Github using git clone and run the app using Pixi.
+```bash
+git clone https://github.com/mhbsiam/cafe.git
+```
+[Here](https://learn.microsoft.com/en-us/windows/wsl/install) is a tutorial on how to install and activate WSL on a Windows computer.
+Finally, while reporting data generated using CAFE, mentioning the operating system used for data generation is highly recommended for replicability. 
+
 ## Citation
 
 If you use CAFE in your research, please cite our paper:
 
-Vardaman, Donald, Md Akkas Ali, Md Hasanul Banna Siam, Chase Bolding, Harrison Tidwell, Holly R. Stephens, Mallikarjun Patil, and Daniel J. Tyrrell. "Development of a Spectral Flow Cytometry Analysis Pipeline for High-Dimensional Immune Cell Characterization." The Journal of Immunology (2024) [https://doi.org/10.4049/jimmunol.2400370](https://doi.org/10.4049/jimmunol.2400370).
+Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Mallikarjun Patil, Satwik Acharyya, and Daniel Tyrrell. “Cafe: An Integrated Web App for High-Dimensional Analysis and Visualization in Spectral Flow Cytometry,” bioRxiv (2024). [https://doi.org/10.1101/2024.12.03.626714](https://doi.org/10.1101/2024.12.03.626714).
 
+Donald Vardaman, Md Akkas Ali, Md Hasanul Banna Siam, Chase Bolding, Harrison Tidwell, Holly R. Stephens, Mallikarjun Patil, and Daniel J. Tyrrell. "Development of a Spectral Flow Cytometry Analysis Pipeline for High-Dimensional Immune Cell Characterization." The Journal of Immunology (2024). [https://doi.org/10.4049/jimmunol.2400370](https://doi.org/10.4049/jimmunol.2400370).
