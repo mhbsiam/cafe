@@ -50,9 +50,9 @@ If you use CAFE in your research, please cite our paper:
 
 st.markdown("---")
 
-st.subheader("How to Run the App")
+st.subheader("How to use CAFE")
 
-image_path = os.path.join('bin', 'img', 'workflow.png')
+image_path = os.path.join('bin', 'img', 'workflow_w.png')
 st.image(image_path, caption='', use_container_width=True)
 
 st.subheader("01. Preparing the CSV files")
@@ -102,13 +102,9 @@ st.markdown("Download the zip file and extract the contents.")
 st.subheader("05. Visualize the data")
 st.markdown("Upload the adata_.h5ad file to analyze and visualize the data.")
 
+
 st.markdown("**⚡Pro tip: If you want to restart the program, a quicker approach is to clear cache from the top right settings menu, and reload the page.**")
 
-
-st.divider()
-st.subheader("System Requirements")
-image_path = os.path.join('bin', 'img', 'os_selection.png')
-st.image(image_path, caption='', use_container_width=True)
 
 st.divider()
 image_path = os.path.join('bin', 'img', 'funding.png')
