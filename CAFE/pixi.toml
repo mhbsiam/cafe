@@ -7,6 +7,7 @@ platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 
 [tasks]
 cafe = "python cafe.py"
+web = "python web.py"
 
 [dependencies]
 python = "==3.12.5"
@@ -25,6 +26,6 @@ seaborn = "==0.13.2"
 plotly = "==5.24.1"
 cmasher = "==1.9.0"
 igraph = "==0.10.8"
-streamlit = "==1.39.0"
+streamlit = "==1.40.0"
 watchdog = "==5.0.2"
 kaleido = "==0.2.1"

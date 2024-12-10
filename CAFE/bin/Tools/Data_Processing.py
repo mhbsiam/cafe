@@ -29,15 +29,11 @@ sc.settings.n_jobs = -1
 def clear_memory():
     gc.collect()
 
-#result_dir = os.path.join(os.getcwd(), 'result')
-#os.makedirs(result_dir, exist_ok=True)
-
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
 
-# Display an image
 image_path = os.path.join('bin', 'img', 'logo_v2.png')
-st.image(image_path, caption='', use_column_width=True)
+st.image(image_path, caption='', use_container_width=True)
 
 st.title("Data Processing")
 
@@ -128,11 +124,6 @@ def process_csv_files(uploaded_files):
     if df.isnull().values.any():
         st.markdown(f"<span style='color:red; font-weight:bold;'>Missing values detected. Dropping missing rows.</span>", unsafe_allow_html=True)
         df = df.dropna()
-
-    #Save the combined DataFrame
-    #combined_output_path = os.path.join(result_dir, 'combined_updated_files.csv')
-    #df.to_csv(combined_output_path, index=False)
-    #st.write(f"Combined DataFrame saved to {combined_output_path}")
 
     expr_data = df.drop(columns=['SampleID', 'Group'])
     expr_data = expr_data.select_dtypes(include=[float, int])
@@ -322,7 +313,7 @@ if option == "Load CSV files":
             resolution = st.slider("Leiden Resolution", min_value=0.0, max_value=2.5, value=0.5, step=0.01,
                                 help="Lower values yield fewer, larger clusters; higher values yield more, smaller clusters.")
 
-            n_neighbors = st.slider("n_neighbors for neighbors computation", min_value=5, max_value=50, value=30, step=1,
+            n_neighbors = st.slider("n_neighbors for neighbors computation", min_value=5, max_value=50, value=15, step=1,
                                     help="Controls the local neighborhood size.")
             min_dist = st.slider("UMAP min_dist", min_value=0.0, max_value=1.0, value=0.1, step=0.01,
                                 help="Controls how tightly UMAP packs points together.")

@@ -16,14 +16,11 @@ import zipfile
 import tempfile
 
 
-#result_dir = os.path.join(os.getcwd(), "result", "annotated")
-#os.makedirs(result_dir, exist_ok=True)
-
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
 
 image_path = os.path.join('bin', 'img', 'logo_v2.png')
-st.image(image_path, caption='', use_column_width=True)
+st.image(image_path, caption='', use_container_width=True)
 
 st.title("Advanced Annotation")
 st.write('*The module allows annotating leiden clusters into cell types and save the adata file.*')

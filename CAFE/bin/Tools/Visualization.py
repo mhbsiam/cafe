@@ -1,7 +1,4 @@
-#Streamlit
 import streamlit as st
-
-#System
 import os
 import time
 import gc
@@ -9,8 +6,6 @@ import io
 from io import BytesIO
 import random
 import zipfile
-
-#Data handling
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -19,16 +14,12 @@ import anndata as ad
 import scipy.sparse as sp
 from scipy.sparse import issparse
 import scanpy as sc
-
-#Plotting
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
-
-#Statistics
 from scipy import stats
 from scipy.stats import (
     ttest_ind,
@@ -42,8 +33,6 @@ from scipy.stats import (
 )
 import scipy.cluster.hierarchy as sch
 from cliffs_delta import cliffs_delta
-
-# Matplotlib
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 from matplotlib.colors import to_rgba, to_hex
 from matplotlib.patches import Patch
@@ -57,19 +46,15 @@ pio.templates["custom"] = pio.templates["plotly"]
 pio.templates["custom"].layout.font.family = "Arial"
 pio.templates.default = "custom"
 
-#result_dir = os.path.join(os.getcwd(), 'result')
-#os.makedirs(result_dir, exist_ok=True)
-
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
 
-# Display an image
 image_path = os.path.join('bin', 'img', 'logo_v2.png')
-st.image(image_path, caption='', use_column_width=True)
+st.image(image_path, caption='', use_container_width=True)
 
 
 st.title("Visualization")
-st.write('*The app includes visualization options such as UMAP plots, marker expression plots, heatmaps, dendogram, dotplots, and barplots with user-adjustable settings like plot dimensions, dot size, and colormap selection. It enables users to compare markers, clusters and saves the figures to the current directory/result folder.*')
+st.write('*The app includes visualization options such as UMAP plots, marker expression plots, heatmaps, dendogram, dotplots, and barplots with user-adjustable settings like plot dimensions, dot size, and colormap selection. It enables users to compare markers, clusters and download the plots.*')
 
 option = st.radio(
     "Choose your option:",
@@ -281,6 +266,17 @@ if option == "Load AnnData":
             st.plotly_chart(fig)
             st.warning(f"Matrix plot was rendered based on {expression_method} expression of markers. Expression values were scaled for visualization.")
 
+            # Download Matrix plot
+            pdf_buffer = BytesIO()
+            pio.write_image(fig, pdf_buffer, format="pdf")
+            pdf_buffer.seek(0)
+
+            st.download_button(
+                label="Download Matrix Plot",
+                data=pdf_buffer,
+                file_name="Matrix.pdf",
+                mime="application/pdf"
+            )
 
             # Dot Plot
             fig2, ax2 = plt.subplots(figsize=(10, 8))

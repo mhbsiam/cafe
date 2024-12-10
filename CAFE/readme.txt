@@ -28,13 +28,13 @@ Method 02: Conda way:
 01. Assuming you have Anaconda installed.
 If not, make a fresh install at: https://www.anaconda.com/download/success
 
-02. Download the tool. Open termonal and head over to the folder where you have the tool's python file (i.e. cafe.py) by typing the following command:
+02. Download the tool. Open terminal (or Anaconda Powershell) and head over to the folder where you have the tool's python file (i.e. cafe.py) by typing the following command:
 
 cd ./path/to/cafe
 
 03. Paste the following command:
 
-conda env create -f conda.yaml
+conda env create -f cafe.yaml
 
 [This will create a new environment called 'cafe' and install all required packages automatically]
 

@@ -20,19 +20,17 @@ import pyarrow as pa
 from matplotlib.colors import ListedColormap
 from scipy.stats import ttest_ind, mannwhitneyu
 
+st.set_page_config(layout="centered")
+
 sc.settings.n_jobs = -1
 
 def clear_memory():
     gc.collect()
 
 image_path = os.path.join('bin', 'img', 'logo.png')
-st.image(image_path, caption='', use_column_width=True)
+st.image(image_path, caption='', use_container_width=True)
 image_path2 = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path2)
-
-# Define the result directory at the beginning
-#result_dir = os.path.join(os.getcwd(), 'result')
-#os.makedirs(result_dir, exist_ok=True)
 
 st.title("Cell Analyzer for Flow Experiment")
 st.subheader("Explore and analyze flow cytometry data interactively")
@@ -45,23 +43,17 @@ st.markdown("## Citation")
 st.markdown("""
 If you use CAFE in your research, please cite our paper:
 
-> Vardaman, Donald, Md Akkas Ali, Md Hasanul Banna Siam, Chase Bolding, Harrison Tidwell, Holly R. Stephens, Mallikarjun Patil, and Daniel J. Tyrrell. "Development of a Spectral Flow Cytometry Analysis Pipeline for High-Dimensional Immune Cell Characterization." The Journal of Immunology (2024) https://doi.org/10.4049/jimmunol.2400370.
+> Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Mallikarjun Patil, Satwik Acharyya, and Daniel Tyrrell. “Cafe: An Integrated Web App for High-Dimensional Analysis and Visualization in Spectral Flow Cytometry,” bioRxiv (2024). https://doi.org/10.1101/2024.12.03.626714.
+
+> Donald Vardaman, Md Akkas Ali, Md Hasanul Banna Siam, Chase Bolding, Harrison Tidwell, Holly R. Stephens, Mallikarjun Patil, and Daniel J. Tyrrell. "Development of a Spectral Flow Cytometry Analysis Pipeline for High-Dimensional Immune Cell Characterization." The Journal of Immunology (2024) https://doi.org/10.4049/jimmunol.2400370.
 """)
-
-st.markdown("---")
-
-image_path = os.path.join('bin', 'img', 'uab.png')
-st.image(image_path, caption='', use_column_width=True)
-
-image_path = os.path.join('bin', 'img', 'funding.png')
-st.image(image_path, caption='', use_column_width=True)
 
 st.markdown("---")
 
 st.subheader("How to Run the App: Step-by-Step Guide")
 
 image_path = os.path.join('bin', 'img', 'workflow.png')
-st.image(image_path, caption='', use_column_width=True)
+st.image(image_path, caption='', use_container_width=True)
 
 st.subheader("01. Preparing the CSV files")
 st.markdown("01. Perform manual gating and export scaled-csv-files from FlowJo or similar software. These CSV files will be the input files for CAFE tool.")
@@ -79,7 +71,6 @@ st.markdown("- CSV files with mismatched column names may result in errors.")
 st.markdown("**CSV file structure:**")
 st.markdown("Here’s an example of how your CSV file should look like, with marker names as column headers and numerical values representing the expression levels:")
 
-import pandas as pd
 
 data = {
     "CD27": [27257.3, 16917.6, 47378.3, 1769.79, 40472.1, 487.425, 31111.4, -249.461, 18263.4],
@@ -116,3 +107,9 @@ st.markdown("**⚡Pro tip: If you want to restart the program, a quicker approac
 
 st.subheader("03. Follow on-screen options")
 st.markdown("Use Buttons, Sliders and Drop down menus to navigate through the app")
+
+st.divider()
+image_path = os.path.join('bin', 'img', 'funding.png')
+st.image(image_path, caption='', use_container_width=True)
+image_path = os.path.join('bin', 'img', 'uab.png')
+st.image(image_path, caption='', use_container_width=True)
