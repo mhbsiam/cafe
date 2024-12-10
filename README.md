@@ -21,7 +21,7 @@ A lightweight demo version of CAFE is available at [website](https://tyrrell-lab
 
 ### Step 2: Extract the ZIP File & Install the tool
 1. Right-click the file and choose **Extract All** (or use a file extraction tool to unzip it).
-2. After extraction, use cursor to navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, conda.yaml etc.
+2. After extraction, use cursor to navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, cafe.yaml etc.
 3. Then, follow the instructions to run the tool using Pixi or Conda.
 
 
@@ -96,7 +96,7 @@ A lightweight demo version of CAFE is available at [website](https://tyrrell-lab
    Then, start from step 3 to set up a fresh environment.
 ##
 
-## How to Run the App: Step-by-Step Guide
+## How to Run the App
 
 ![Logo](CAFE/bin/img/workflow.png)
 
@@ -138,8 +138,10 @@ Data accessible at FlowRepository: FR-FCM-Z3WR
 ### 02. Running CAFE
 
 ```python
-# 2.1 Navigate to the tool’s directory
-# Tip: Navigate to the directory where your CAFE tool’s Python file (cafe.py) is located.
+
+# 2.0 Open terminal app (or Anaconda Powershell or Windows Powershell)
+
+# 2.1 Navigate to the directory where your CAFE tool’s Python file (cafe.py) is located.
 cd ./path/to/cafe
 
 # 2.2 Run the tool with pixi
@@ -159,8 +161,8 @@ python cafe.py
 - Make sure all CSV files have the same number of markers (i.e., columns) and that the column names match across files.
 - Check that your files are named correctly, e.g., `SampleID_GroupA.csv`.
 
-**03. Where are my results saved?**  
-- The results are saved in the result directory where the `cafe.py` script was run from.
+**03. How long does it take for Leiden clustering?**  
+- Depending on the user's specification, UMAP computation and Leiden clustering steps can take up to 30 minutes. For example, with an Apple M3 Pro 18GB system, we ran Leiden resolution of 1.0 with UMAP n_neighbors set to 15 using a dataset of 350,000 cells and 12.25M data points, it took ~12 minutes to complete.
 
 ##
 ## How to run Data Processing step in HPC?
@@ -220,9 +222,9 @@ kaleido = "==0.2.1"
 ```
 
 ##
-## System Requirements
+## System Requirements 
 
-A Mac/Linux-based operating system with at least 16GB of RAM is recommended for running CAFE. 
+![Logo](CAFE/bin/img/os_selection.png)
 
 ## Known Issues
 
