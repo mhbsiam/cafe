@@ -148,7 +148,7 @@ def process_csv_files(uploaded_files):
 
 if option == "Load CSV files":
     if st.session_state.adata is None:
-        st.write("Please upload your CSV files.")
+        st.write("Please upload CSV files.")
         uploaded_files = st.file_uploader("Choose CSV files", type="csv", accept_multiple_files=True)
 
         if uploaded_files:

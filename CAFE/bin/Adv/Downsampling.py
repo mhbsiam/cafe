@@ -15,9 +15,6 @@ st.logo(image_path)
 image_path = os.path.join('bin', 'img', 'logo_v2.png')
 st.image(image_path, caption='', use_container_width=True)
 
-result_dir = os.path.join(os.getcwd(), 'result/statistics')
-os.makedirs(result_dir, exist_ok=True)
-
 st.title("Downsample your data")
 st.write("*CAFE will downsample large datasets using PCA (Principal Component Analysis) and KDE (Kernel Density Estimation). KDE is applied to the PCA-transformed data to estimate the density of data points. Based on these density estimates, the code probabilistically downsamples the data, favoring points in regions of higher density. This method reduces sampling bias and preserves original data distribution. If your CSV files are very large, we recommend using an HPC cluster.*")
 
