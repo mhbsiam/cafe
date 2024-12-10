@@ -21,7 +21,7 @@ A lightweight demo version of CAFE is available at [website](https://tyrrell-lab
 
 ### Step 2: Extract the ZIP File & Install the tool
 1. Right-click the file and choose **Extract All** (or use a file extraction tool to unzip it).
-2. After extraction, use cursor to navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, conda.yaml etc.
+2. After extraction, use cursor to navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, cafe.yaml etc.
 3. Then, follow the instructions to run the tool using Pixi or Conda.
 
 
