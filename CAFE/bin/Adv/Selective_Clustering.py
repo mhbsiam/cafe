@@ -13,6 +13,8 @@ import zipfile
 import tempfile
 import random
 
+st.set_page_config(layout="centered")
+
 sc.settings.n_jobs = -1
 
 image_path = os.path.join('bin', 'img', 's_logo.png')
