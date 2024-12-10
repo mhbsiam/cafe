@@ -12,6 +12,8 @@ import streamlit as st
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 from scipy.spatial.distance import cdist
 
+st.set_page_config(layout="centered")
+
 sc.settings.n_jobs = -1
 
 image_path = os.path.join('bin', 'img', 's_logo.png')

@@ -7,6 +7,8 @@ from joblib import Parallel, delayed
 import streamlit as st
 import time
 
+st.set_page_config(layout="centered")
+
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
 

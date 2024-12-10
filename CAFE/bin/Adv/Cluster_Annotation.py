@@ -15,6 +15,7 @@ import io
 import zipfile
 import tempfile
 
+st.set_page_config(layout="centered")
 
 image_path = os.path.join('bin', 'img', 's_logo.png')
 st.logo(image_path)
