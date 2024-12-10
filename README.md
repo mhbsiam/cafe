@@ -64,7 +64,7 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
    If you don't have Anaconda installed, download it from [here](https://www.anaconda.com/download/success).
 
 2. **Make sure you are in the correct directory (./CAFE/)**  
-   If unsure, open your terminal app (or Powershell in Windows) and navigate to the folder containing the `cafe.py` file by typing:
+   If unsure, open your terminal app (or Anaconda Powershell) and navigate to the folder containing the `cafe.py` file by typing:
    ```bash
    cd ./path/to/CAFE
    ```
@@ -72,7 +72,7 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 3. **Create the Conda environment**  
    Run the following command:
    ```bash
-   conda env create -f conda.yaml
+   conda env create -f cafe.yaml
    ```
    This will automatically create a new environment called `cafe` and install all required packages.
 
