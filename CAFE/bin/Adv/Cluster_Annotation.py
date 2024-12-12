@@ -86,7 +86,7 @@ if st.session_state.adata is not None:
                     temp_path = temp_file.name
                     st.session_state.adata.write_h5ad(temp_path)
                     zip_file.write(temp_path, arcname=f"annotated_adata_{random_number}.h5ad")
-                    os.remove(temp_path)
+                os.remove(temp_path)
 
             zip_buffer.seek(0)
 
