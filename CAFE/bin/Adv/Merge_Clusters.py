@@ -58,7 +58,7 @@ if st.session_state.adata is not None:
 
     with st.form(key='merge_form'):
         merge_input = st.text_input(
-            "Enter clusters to merge in the format {1:7,3,8}, {2:5,9,4}",
+            "Enter clusters to merge in the format {new_cluster_name:old_cluster,old_cluster}. For example: {1:7,3,8}, {2:5,9,4}",
             value="{1:7,3,8}, {2:5,9,4}"
         )
         submit_merge = st.form_submit_button("Merge Clusters")
@@ -111,7 +111,6 @@ if st.session_state.adata is not None:
                 temp_path = temp_file.name
                 st.session_state.adata.write_h5ad(temp_path)
                 zip_file.write(temp_path, arcname=f"merged_adata_{random_number}.h5ad")
-                os.remove(temp_path)
 
             # Add the merge log to the zip
             with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as log_temp_file:
@@ -119,7 +118,6 @@ if st.session_state.adata is not None:
                 with open(log_temp_path, "w") as log_file:
                     log_file.write(merge_log)
                 zip_file.write(log_temp_path, arcname=f"merge_log_{random_number}.txt")
-                os.remove(log_temp_path)
 
         zip_buffer.seek(0)
         progress_bar.progress(100)
