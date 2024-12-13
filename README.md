@@ -18,9 +18,9 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 3. Select **CAFE_version.zip** file to download.
 
 ### Step 2: Extract the ZIP File & Install the tool
-1. Right-click the file and choose **Extract All** (or use a file extraction tool to unzip it).
-2. After extraction, use cursor to navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, cafe.yaml etc.
-3. Then, follow the instructions to run the tool using Pixi or Conda.
+1. Extract the files
+2. Navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, cafe.yaml etc.
+3. Then, follow the instructions below to run the tool using Pixi or Conda.
 
 
 ##
