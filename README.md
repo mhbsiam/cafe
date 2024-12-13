@@ -186,7 +186,7 @@ Decide on the arguments to pass to the script:
 ### 2. Run the Script
 Run the script in your terminal using the following command. For example:
 ```bash
-python3 hpc_run.py \
+python3 cafe_hpc.py \
   --input /path/to/input_dir \
   --output /path/to/output_dir \
   --pca auto \
