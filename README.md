@@ -214,8 +214,8 @@ seaborn = "==0.13.2"
 plotly = "==5.24.1"
 cmasher = "==1.9.0"
 igraph = "==0.10.8"
-streamlit = "==1.39.0"
-watchdog = "==5.0.2"
+streamlit = "==1.39.0" -> "==1.41.0"
+watchdog = "==5.0.2" -> "==6.0.0"
 kaleido = "==0.2.1"
 ```
 
