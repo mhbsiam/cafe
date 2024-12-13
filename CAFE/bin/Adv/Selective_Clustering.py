@@ -284,7 +284,7 @@ if 'perform_pca' not in st.session_state:
 
 
 st.title("Semi Supervised Clustering")
-st.write("*Semi supervised clustering allows a user to select a number of markers or a cell type based on marker selection to construct Leiden cluster. This is useful to find out a specific cell population.*")
+st.write("*Semi supervised clustering allows a user to select a number of markers, or a cell type (i.e. based on marker selection) to construct Leiden clusters. This is useful to find out a specific cell population.*")
 
 option = st.radio(
     "Choose your option:",

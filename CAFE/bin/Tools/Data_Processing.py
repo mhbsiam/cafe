@@ -38,7 +38,7 @@ st.image(image_path, caption='', use_container_width=True)
 st.title("Data Processing")
 
 st.markdown(
-    "*In this section, the app will read and process the uploaded files, combine them into a single DataFrame, and create an AnnData object for further analysis. It includes functionality for performing PCA, batch correction, UMAP, and unsupervised Leiden clustering. Results such as cluster counts, frequencies, and median fluorescence intensities are saved to CSV files, and the processed AnnData (.h5ad) file can be downloaded and be used to create figures and run statistics.*")
+    "*In this section, the app will read and process the uploaded files, combine them into a single DataFrame, and create an AnnData object for further analysis. It includes functionality for performing PCA, batch correction, UMAP, and unsupervised Leiden clustering. Results such as cluster counts, frequencies, and median fluorescence intensities are converted to CSV files, and the processed AnnData (.h5ad) file can be downloaded and be used to create figures and run statistics.*")
 
 option = st.radio(
     "Choose your option:",
