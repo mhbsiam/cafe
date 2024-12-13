@@ -56,6 +56,10 @@ if st.session_state.adata is not None:
 
     st.pyplot(fig)
 
+    st.divider()
+    image_path = os.path.join('bin', 'img', 'merging.png')
+    st.image(image_path, caption='', use_container_width=True)
+    st.divider()
     with st.form(key='merge_form'):
         merge_input = st.text_input(
             "Enter clusters to merge in the format {new_cluster_name:old_cluster,old_cluster}. For example: {1:7,3,8}, {2:5,9,4}",
