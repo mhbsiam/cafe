@@ -310,7 +310,7 @@ if option == "Load CSV files":
         st.write("Batch correction has been completed.")
 
         with st.form(key='umap_leiden_form'):
-            resolution = st.slider("Leiden Resolution", min_value=0.0, max_value=2.5, value=0.5, step=0.01,
+            resolution = st.slider("Leiden Resolution", min_value=0.01, max_value=2.5, value=0.5, step=0.01,
                                 help="Lower values yield fewer, larger clusters; higher values yield more, smaller clusters.")
 
             n_neighbors = st.slider("n_neighbors for neighbors computation", min_value=5, max_value=50, value=15, step=1,

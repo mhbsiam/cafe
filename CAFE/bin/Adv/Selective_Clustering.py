@@ -134,10 +134,10 @@ def compute_umap_leiden(adata):
     with st.form(key='umap_leiden_form'):
         resolution = st.slider(
             "Leiden Resolution",
-            min_value=0.1,
+            min_value=0.01,
             max_value=2.5,
             value=0.5,
-            step=0.1,
+            step=0.01,
             help="Lower values yield fewer, larger clusters; higher values yield more, smaller clusters."
         )
 
@@ -145,7 +145,7 @@ def compute_umap_leiden(adata):
             "n_neighbors for neighbors computation",
             min_value=5,
             max_value=50,
-            value=30,
+            value=15,
             step=1,
             help="Controls the local neighborhood size."
         )
@@ -209,9 +209,6 @@ def compute_umap_leiden(adata):
                 random_state=random_state
             )
 
-            output_h5ad_path = os.path.join(result_dir, 'adata_flowanalysis.h5ad')
-            adata.write(output_h5ad_path)
-
             cluster_sample_counts = adata.obs.groupby(['leiden', 'SampleID']).size().unstack(fill_value=0)
 
             sample_totals = cluster_sample_counts.sum()
@@ -227,7 +224,7 @@ def compute_umap_leiden(adata):
                 with zipfile.ZipFile(zip_buffer, "w") as zip_file:
                     for file_path, arcname in selected_files:
                         zip_file.write(file_path, arcname=arcname)
-                        os.remove(file_path)  # Clean up the temporary file immediately
+                        os.remove(file_path)
                 zip_buffer.seek(0)
                 return zip_buffer
 
@@ -405,7 +402,7 @@ elif option in ['Subset by removing markers', 'Subset by cell type']:
             variance_threshold = st.slider(
                 "Select the explained variance threshold (%) to retain",
                 min_value=70, max_value=99,
-                value=90,
+                value=95,
                 key='variance_threshold'
             )
 
