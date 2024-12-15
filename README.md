@@ -101,7 +101,8 @@ CAFE is an open-source, free, no-code, web-app platform for high-dimensional spe
 ### 01. Preparing the CSV Files
 
 1.1 **Perform manual gating and export scaled CSV files**  
-   Export scaled CSV files from FlowJo or similar software. These CSV files will be the input files for the CAFE tool.
+   - Open FlowJo or a similar software and upload your FCS files. Perform manual inspection of flow cytometry data and use manual gating to remove debris, dead cells, and doublets. Then, export the CSV files as scaled CSV files. You can also gate on appropriate cell type (e.g CD45+) and export the data to obtain more focused clustering results. 
+   - These CSV files will be the input files for the CAFE tool.
 
 1.2 **Rename each CSV file in the following way:**  
    - `SampleID_GroupA.csv` (e.g., `ABC001_Aged.csv`)
