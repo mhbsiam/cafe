@@ -1,6 +1,6 @@
 ![Python Versions](https://img.shields.io/badge/python-3.12.5-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![bioRxiv](https://img.shields.io/badge/bioRxiv-doi.org/10.4049/jimmunol.2400370-red)
+![bioRxiv](https://img.shields.io/badge/bioRxiv-https://doi.org/10.1101/2024.12.03.626714-red)
 
 ![Logo](CAFE/bin/img/logo.png)
 
