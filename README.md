@@ -1,13 +1,14 @@
 ![Python Versions](https://img.shields.io/badge/python-3.12.5-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![DOI](https://img.shields.io/badge/DOI-doi.org/10.4049/jimmunol.2400370-blue)
-
+![bioRxiv](https://img.shields.io/badge/bioRxiv-doi.org/10.4049/jimmunol.2400370-red)
 
 ![Logo](CAFE/bin/img/logo.png)
 
 # CAFE (Cell Analyzer for Flow Experiment)
 
 CAFE is an open-source, free, no-code, web-app platform for high-dimensional spectral flow cytometry data (SFCM) analysis. CAFE has been developed in Python and it can run seamlessly on regular computers operating on either Windows or macOS/Linux. The application will allow the analysis and visualization of SFCM data to produce high-resolution publication-ready figures that support reproducible research of immune cell populations.
+
+A lightweight demo version of CAFE is hosted here: [Website](https://tyrrell-lab.com) 
 
 ##
 ## How to Download CAFE
