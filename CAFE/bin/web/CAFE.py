@@ -56,7 +56,7 @@ image_path = os.path.join('bin', 'img', 'workflow_w.png')
 st.image(image_path, caption='', use_container_width=True)
 
 st.subheader("01. Preparing the CSV files")
-st.markdown("01. Perform manual gating and export scaled-csv-files from FlowJo or similar software. These CSV files will be the input files for CAFE tool.")
+st.markdown("01. Open FlowJo or a similar software and upload your FCS files. Perform manual inspection of flow cytometry data and use manual gating to remove debris, dead cells, and doublets. Then, export the CSV files as scaled CSV files. You can also gate on appropriate cell type (e.g CD45+) and export the data to obtain more focused clustering results. These CSV files will be the input files for the CAFE tool.")
 st.markdown("02. For CAFE to work, each CSV file needs to be renamed in the following way:")
 st.markdown("SampleID_GroupA.csv, **Example: ABC001_Aged.csv**")
 st.markdown("SampleID_GroupB.csv, **Example: ABC002_Young.csv**")
