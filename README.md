@@ -15,6 +15,11 @@ Example data for testing available at FigShare:
 02. [Processed-H5AD](https://figshare.com/articles/dataset/Downsampled_data_from_FlowRepository_FR-FCM-Z3WR/27940752)
 
 ##
+## CAFE Interface
+
+![Logo](CAFE/bin/img/CAFE_interface.jpg)
+
+##
 ## How to Download CAFE
 
 ### Step 1: Download the tool as a ZIP file
