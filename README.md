@@ -176,6 +176,8 @@ python cafe.py
 ##
 ## How to run Data Processing step in HPC?
 
+This is optional. If you have access to a High-Performance Computing system, you can process your data in HPC using the provided cafe_hpc.py script to make an AnnData Object. You can also test multiple Leiden resolution values to determine which fits the dataset best. This is particularly useful if you have a large dataset.
+
 ### Steps:
 
 - Download the standalone script found in CAFE/cafe_hpc.py
