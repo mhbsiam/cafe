@@ -60,8 +60,9 @@ Example data for testing available at FigShare:
    pixi self-update --version 0.34.0
    ```
 
-3. **Run the CAFE tool**  
-   Run the tool by typing:
+3. **Run the CAFE tool**
+   - **⚠️ Ensure you are in the correct directory (.CAFE/) where you will find the following files: bin folder, cafe.py, pixi.toml, cafe.yaml etc.**
+   - Run the tool by typing:
    ```bash
    pixi run cafe
    ```
