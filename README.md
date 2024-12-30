@@ -36,17 +36,9 @@ Example data for testing available at FigShare:
 ##
 ## Installation
 
-### Method 1: Pixi Way
+### Method 1: Pixi Way (for performance)
 
-1. **Make sure you are in the correct directory (./CAFE/)**  
-   If unsure, open your terminal app (or Powershell in Windows) and navigate to the folder containing the `cafe.py` file by typing:
-   ```bash
-   cd ./path/to/CAFE
-   ```
-   **Note:** Windows uses the backslash ( \ ) for the file system delimiter. For example, if the path to CAFE in Linux/macOS is `./documents/CAFE`, it will be `.\documents\CAFE` in Windows.
-
-
-2. **Install Pixi**  
+1. **Install Pixi**  
    Run the following command to install Pixi for Mac/Linux:
    ```bash
    curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.34.0 bash
@@ -62,37 +54,45 @@ Example data for testing available at FigShare:
 
 3. **Run the CAFE tool**
    - **⚠️ Ensure you are in the correct directory (.CAFE/) where you will find the following files: bin folder, cafe.py, pixi.toml, cafe.yaml etc.**
-   - Run the tool by typing:
+   - If unsure, open your terminal app (or Powershell in Windows) and navigate to the folder containing the `cafe.py` file by typing:
+   ```bash
+   cd ./path/to/CAFE
+   ```
+   **Note:** Windows uses the backslash ( \ ) for the file system delimiter. For example, if the path to CAFE in Linux/macOS is `./documents/CAFE`, it will be `.\documents\CAFE` in Windows.
+
+   - **📌 Run the tool by typing:**
    ```bash
    pixi run cafe
    ```
 
 
-### Method 2: Conda Way
+### Method 2: Conda Way (for compatibility)
 
 1. **Ensure Anaconda is installed**  
    If you don't have Anaconda installed, download it from [here](https://www.anaconda.com/download/success).
 
-2. **Make sure you are in the correct directory (./CAFE/)**  
-   If unsure, open your terminal app (or Anaconda Powershell) and navigate to the folder containing the `cafe.py` file by typing:
+2. **Navigate to the CAFE directory (./CAFE/)**
+
+   - **⚠️ Ensure you are in the correct directory where you will find the following files: bin folder, cafe.py, pixi.toml, cafe.yaml etc.**
+   - If unsure, open your terminal app (or Anaconda Powershell) and navigate to the folder containing the `cafe.py` file by typing:
    ```bash
    cd ./path/to/CAFE
    ```
 
-3. **Create the Conda environment**  
+4. **Create the Conda environment**  
    Run the following command:
    ```bash
    conda env create -f cafe.yaml
    ```
    This will automatically create a new environment called `cafe` and install all required packages.
 
-4. **Activate the Conda environment**  
+5. **Activate the Conda environment**  
    Type:
    ```bash
    conda activate cafe
    ```
 
-5. **Run the tool**  
+6. **Run the tool**  
    Execute the tool by typing:
    ```bash
    python cafe.py
