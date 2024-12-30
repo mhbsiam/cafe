@@ -53,7 +53,7 @@ Example data for testing available at FigShare:
    ```
 
 3. **Run the CAFE tool**
-   - **⚠️ Ensure you are in the correct directory (.CAFE/) where you will find the following files: bin folder, cafe.py, pixi.toml, cafe.yaml etc.**
+   - **⚠️ Ensure you are in the correct directory where you will find the following files: bin folder, cafe.py, pixi.toml, cafe.yaml etc.**
    - If unsure, open your terminal app (or Powershell in Windows) and navigate to the folder containing the `cafe.py` file by typing:
    ```bash
    cd ./path/to/CAFE
@@ -65,7 +65,7 @@ Example data for testing available at FigShare:
    pixi run cafe
    ```
 
-
+##
 ### Method 2: Conda Way (for compatibility)
 
 1. **Ensure Anaconda is installed**  
