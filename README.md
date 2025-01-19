@@ -140,6 +140,11 @@ pixi run cafe
 python cafe.py
 ```
 ##
+## System Requirements 
+
+![Logo](CAFE/bin/img/os_selection.png)
+
+##
 ## FAQ
 
 **01. Can I load new data without re-running the CAFE app from the beginning?**  
@@ -211,11 +216,6 @@ streamlit = "==1.39.0" -> "==1.41.0"
 watchdog = "==5.0.2" -> "==6.0.0"
 kaleido = "==0.2.1"
 ```
-
-##
-## System Requirements 
-
-![Logo](CAFE/bin/img/os_selection.png)
 
 ## Known Issues
 
