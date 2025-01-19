@@ -38,12 +38,13 @@ Example data for testing available at FigShare:
 
 ### Method 1: Pixi Way (for performance)
 
-**Install Pixi**  
+**For Mac/Linux**  
 Run the following command to install Pixi for Mac/Linux:
 ```bash
 curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.34.0 bash
 ```
-For Windows, (1) first run the following code:
+**For Windows**,  
+(1) first run the following code:
 ```bash
 iwr -useb https://pixi.sh/install.ps1 | iex
 ```
@@ -66,13 +67,13 @@ If you don't have Anaconda installed, download it from [here](https://www.anacon
 cd ./path/to/CAFE
 ```
 
-4. **Create the Conda environment**  
+4. **Create a predefined conda environment**  
 ```bash
 conda env create -f cafe.yaml
 ```
 This will automatically create a new environment called `cafe` and install all required packages.
 
-5. **Activate the Conda environment**  
+5. **Activate the conda environment**  
 ```bash
 conda activate cafe
 ```
