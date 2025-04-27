@@ -12,7 +12,8 @@ Example data for testing available at FigShare:
 01. [Downsampled-CSV](https://figshare.com/articles/dataset/Downsampled_data_from_FlowRepository_FR-FCM-Z3WR/27940719)
 02. [Processed-H5AD](https://figshare.com/articles/dataset/Downsampled_data_from_FlowRepository_FR-FCM-Z3WR/27940752)
 
-Update: CAFE is now accepted for publication in Bioinformatics
+**Update: CAFE is now accepted for publication in Bioinformatics**
+
 Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Satwik Acharyya, Mallikarjun Patil, Daniel J Tyrrell, CAFE: An Integrated Web App for High-Dimensional Analysis and Visualization in Spectral Flow Cytometry, Bioinformatics, 2025;, btaf176, https://doi.org/10.1093/bioinformatics/btaf176
 
 ##
