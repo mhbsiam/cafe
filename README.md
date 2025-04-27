@@ -85,11 +85,28 @@ conda env remove -n cafe -y
 Then, start from step 3 to set up a fresh environment.
 ##
 
-## How to Run the App
+## Run CAFE
+
+```python
+
+# Open terminal app (or Anaconda Powershell or Windows Powershell)
+
+# Navigate to the directory where your CAFE tool’s Python file (cafe.py) is located.
+cd ./path/to/cafe
+
+# Run the tool with pixi
+pixi run cafe
+
+#-----------------------------------
+# or Run the tool with conda
+python cafe.py
+```
+##
+## Workflow
 
 ![Logo](CAFE/bin/img/workflow.png)
 
-### 01. Preparing the CSV Files
+### Preparing the CSV Files
 
 1.1 **Perform manual gating and export scaled CSV files**  
    - Open FlowJo or a similar software and upload your FCS files. Perform manual inspection of flow cytometry data and use manual gating to remove debris, dead cells, and doublets. Then, export the CSV files as scaled CSV files. You can also gate on appropriate cell type (e.g CD45+) and export the data to obtain more focused clustering results. 
@@ -125,21 +142,6 @@ Here’s an example of how your CSV file should look like, with marker names as 
 
 Data accessible at FlowRepository: FR-FCM-Z3WR
 
-### 02. Running CAFE
-
-```python
-
-# 2.0 Open terminal app (or Anaconda Powershell or Windows Powershell)
-
-# 2.1 Navigate to the directory where your CAFE tool’s Python file (cafe.py) is located.
-cd ./path/to/cafe
-
-# 2.2 Run the tool with pixi
-pixi run cafe
-
-# or Run the tool with conda
-python cafe.py
-```
 ##
 ## System Requirements 
 
