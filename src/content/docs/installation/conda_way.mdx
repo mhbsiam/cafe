@@ -1,0 +1,41 @@
+---
+title: Conda Way (for performance)
+description: Install CAFE using Conda.
+sidebar:
+    order: 2
+    label: Conda Way
+    badge:
+        text: Performance
+        variant: note
+---
+import {Aside} from '@astrojs/starlight/components';
+
+##### 1. Ensure Anaconda is installed  
+If you don't have Anaconda installed, download it from [here](https://www.anaconda.com/download/success).
+
+##### 2. Navigate to the CAFE directory (./CAFE/)
+
+- **Ensure you are in the correct directory where you will find the following files: bin folder, cafe.py, pixi.toml, cafe.yaml etc.**
+- If unsure, open your terminal app (or Anaconda Powershell) and navigate to the folder containing the `cafe.py` file by typing:
+```bash
+cd ./path/to/CAFE
+```
+
+##### 3. Create a predefined conda environment  
+```bash
+conda env create -f cafe.yaml
+```
+This will automatically create a new environment called `cafe` and install all required packages.
+
+##### 4. Activate the conda environment  
+Run this command to activate the Conda environment
+```bash
+conda activate cafe
+```
+<Aside type='caution' title='Note'>   
+If you already have a `cafe` environment from a previous version, remove it first by deactivating the environment and running:
+```bash
+conda env remove -n cafe -y
+```
+Then, start from step 3 to set up a fresh environment.
+</Aside>

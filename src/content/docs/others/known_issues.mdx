@@ -1,0 +1,11 @@
+---
+title: Known Issues
+description: Known issues with CAFE
+---
+
+Windows OS has known issues with Scanpy and thus generates a higher number of clusters with a given Leiden resolution value. A numpy conflict may provide a value error message, ignore the warning. For optimal performance, consider using WSL to download the CAFE folder from Github using git clone and run the app using Pixi.
+```bash
+git clone https://github.com/mhbsiam/cafe.git
+```
+[Here](https://learn.microsoft.com/en-us/windows/wsl/install) is a tutorial on how to install and activate WSL on a Windows computer.
+Finally, while reporting data generated using CAFE, mentioning the operating system used for data generation is highly recommended for replicability. 

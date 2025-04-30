@@ -1,0 +1,17 @@
+---
+title: FAQ
+description: Frequently asked questions about CAFE.
+---
+import {Aside} from '@astrojs/starlight/components'
+
+**01. Can I load new data without re-running the CAFE app from the beginning?**  
+- Absolutely. As mentioned above, you can select **Clear Cache** from the top right setting menu, then either press **Rerun** or simply reload the web page.  
+<Aside title="Pro tip" type="tip"> 
+    For a quicker restart, you can clear the cache and reload the web page.
+</Aside>
+**02. What should I do if I get an error while loading CSV files?**  
+- Make sure all CSV files have the same number of markers (i.e., columns) and that the column names match across files.
+- Check that your files are named correctly, e.g., `SampleID_GroupA.csv`.
+
+**03. How long does it take for Leiden clustering?**  
+- Depending on the user's specification, UMAP computation and Leiden clustering steps can take up to 30 minutes. For example, with an Apple M3 Pro 18GB system, we ran Leiden resolution of 1.0 with UMAP n_neighbors set to 15 using a dataset of 350,000 cells and 12.25M data points, it took ~12 minutes to complete.

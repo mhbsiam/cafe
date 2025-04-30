@@ -1,0 +1,31 @@
+---
+title: Preparaing the CSV Files
+description: Preparing the CSV files for CAFE.
+sidebar:
+    order: 2
+    label: Preparation
+---
+
+import {Aside} from '@astrojs/starlight/components'
+
+##### 1.1 Perform manual gating and export scaled CSV files  
+   - Open FlowJo or a similar software and upload your FCS files. Perform manual inspection of flow cytometry data and use manual gating to remove debris, dead cells, and doublets. Then, export the CSV files as scaled CSV files. You can also gate on appropriate cell type (e.g CD45+) and export the data to obtain more focused clustering results. 
+   - These CSV files will be the input files for the CAFE tool.
+
+##### 1.2 Rename each CSV file in the following way:
+   - `SampleID_GroupA.csv` (e.g., `ABC001_Aged.csv`)
+   - `SampleID_GroupB.csv` (e.g., `ABC002_Young.csv`)
+
+<Aside type="tip" title="Pro tip"> 
+    For optimal performance, CAFE expects two groups to run properly and perform statistics. Example groups: Aged and Young.
+</Aside>
+
+##### 1.3 Ensure that each CSV file:
+   - Contains the same number of columns (markers).
+   - Uses identical marker names across files.
+   - Example of consistent markers: CD45, TCRY, CD28, etc.
+
+<Aside type="tip" title="Pro tip"> 
+    CSV files with mismatched column names may result in errors. SampleID should be unique to avoid incorrect results.
+</Aside>
+
