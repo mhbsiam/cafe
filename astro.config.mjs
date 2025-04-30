@@ -39,7 +39,7 @@ export default defineConfig({
         {
           label: "Workflow",
           items: [
-            "workflow/diagram",
+            "workflow/flow_diagram",
             "workflow/preparation",
             "workflow/scaled_csv_file_structure",
           ],
