@@ -1,0 +1,25 @@
+---
+title: Pixi Way (for compatibility)
+description: Install CAFE using Pixie.
+sidebar:
+    order: 1
+    label: Pixi Way
+    badge:
+        text: Compatibility
+        variant: success
+---
+
+#### For Mac/Linux:  
+Run the following command to install Pixi for Mac/Linux:
+```bash
+curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.34.0 bash
+```
+#### For Windows:  
+1. First run the following code:
+```bash
+iwr -useb https://pixi.sh/install.ps1 | iex
+```
+2. Then run the code below to restore Pixi to a specific version:
+```bash
+pixi self-update --version 0.34.0
+```
