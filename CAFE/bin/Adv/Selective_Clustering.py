@@ -1,176 +1,143 @@
-import streamlit as st
-import os
-import anndata as ad
-import scanpy as sc
-import matplotlib.pyplot as plt
-import pyarrow.csv as pv
-import pyarrow as pa
-import pandas as pd
-import time
-import gc
 import io
-import zipfile
-import tempfile
+import os
 import random
+import tempfile
+import time
+import zipfile
+
+import anndata as ad
+import matplotlib.pyplot as plt
+import pandas as pd
+import pyarrow as pa
+import pyarrow.csv as pv
+import scanpy as sc
+import streamlit as st
+
+from theme import apply_theme, page_header
+from utils import process_uploaded_csv_to_df, run_combat_correction
 
 st.set_page_config(layout="centered")
+apply_theme()
+
+# A2: deployment-mode flag (set by run_w.py for web deployment)
+IS_WEB = st.session_state.get('cafe_deployment') == 'web'
 
 sc.settings.n_jobs = -1
 
-image_path = os.path.join('bin', 'img', 's_logo.png')
-st.logo(image_path)
-
-# Display an image
-image_path = os.path.join('bin', 'img', 'logo_v2.png')
-st.image(image_path, caption='', use_container_width=True)
-
-def clear_memory():
-    gc.collect()
+st.logo(os.path.join('bin', 'img', 's_logo.png'))
 
 def process_csv_files(uploaded_files):
-    start_time = time.time()
-    tables = []
-    reference_columns = None
-
-    progress_bar = st.progress(0)
-    elapsed_time_placeholder = st.empty()
-    status_placeholder = st.empty()
-
-    total_steps = len(uploaded_files) + 5
-    current_step = 0
-
-    for idx, uploaded_file in enumerate(uploaded_files):
-        current_step += 1
-        progress_percentage = current_step / total_steps
-        progress_bar.progress(progress_percentage)
-        status_placeholder.write(f"Processing file {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
-        table = pv.read_csv(uploaded_file)
-
-        numeric_columns = [col for col in table.column_names if pa.types.is_integer(table.schema.field(col).type)]
-        for col in numeric_columns:
-            table = table.set_column(table.column_names.index(col), col, table.column(col).cast(pa.float64()))
-
-        if 'SampleID' in table.column_names:
-            table = table.set_column(table.column_names.index('SampleID'), 'SampleID', table.column('SampleID').cast(pa.string()))
-        if 'Group' in table.column_names:
-            table = table.set_column(table.column_names.index('Group'), 'Group', table.column('Group').cast(pa.string()))
-
-        if reference_columns is None:
-            reference_columns = set(table.column_names)
-        else:
-            current_columns = set(table.column_names)
-            if current_columns != reference_columns:
-                st.warning(f"Warning: Column names in {uploaded_file.name} do not match the reference columns!")
-                st.write(f"Found columns: {current_columns}")
-                continue
-
-        file_name = uploaded_file.name
-        name_parts = file_name.replace('.csv', '').split('_')
-
-        if len(name_parts) != 2:
-            st.write(f"Skipping file {file_name} as it does not have the expected format 'sampleID_group.csv'")
-            continue
-
-        table = table.append_column('SampleID', pa.array([name_parts[0]] * len(table)))
-        table = table.append_column('Group', pa.array([name_parts[1]] * len(table)))
-
-        columns_to_drop = [col for col in table.column_names if col.lower() == 'sample']
-        if columns_to_drop:
-            table = table.drop(columns_to_drop)
-
-        tables.append(table)
-
-    combined_table = pa.concat_tables(tables)
-    current_step += 1
-    progress_bar.progress(current_step / total_steps)
-    status_placeholder.write("Combining all files into a single table")
-
-    df = combined_table.to_pandas()
-
-    if df.isnull().values.any():
-        st.markdown(
-            f"<span style='color:red; font-weight:bold;'>Missing values detected. Dropping missing rows.</span>",
-            unsafe_allow_html=True
-        )
-        df = df.dropna()
-
-    current_step += 1
-    progress_bar.progress(1.0)
-    elapsed_time = time.time() - start_time
-    elapsed_time_placeholder.write(f"Data loading and processing completed in {elapsed_time:.2f} seconds")
-    status_placeholder.write("Processing complete.")
-
-    return df
+    # A4: delegate to shared utils implementation (returns DataFrame)
+    return process_uploaded_csv_to_df(uploaded_files)
 
 def perform_batch_correction(adata):
-    st.subheader("Batch correction")
-
-    with st.form(key='batch_correction_form'):
-        batch_correction_method = st.radio(
-            "Select batch correction method",
-            ('None', 'ComBat')
+    with st.expander("Batch correction", expanded=True):
+        st.caption(
+            "Use a *technical* batch distinct from the biological Group "
+            "(e.g. acquisition day, instrument) — correcting on Group erases "
+            "the differences you're testing for. Assign each sample below; "
+            "batches must span multiple groups."
         )
-        submit_button = st.form_submit_button(label='Apply')
+
+        sample_ids = sorted(pd.unique(adata.obs['SampleID']))
+        sample_group = dict(zip(adata.obs['SampleID'], adata.obs['Group']))
+
+        with st.form(key='batch_correction_form'):
+            batch_correction_method = st.radio(
+                "Select batch correction method",
+                ('None', 'ComBat')
+            )
+
+            st.caption("Batch assignment (used only when ComBat is selected):")
+            batch_assignment_df = st.data_editor(
+                pd.DataFrame({
+                    'SampleID': sample_ids,
+                    'Group': [sample_group.get(sid, '') for sid in sample_ids],
+                    'Batch': ['1'] * len(sample_ids),
+                }),
+                disabled=['SampleID', 'Group'],
+                hide_index=True,
+                width='stretch',
+                key='selective_batch_assignment_editor',
+            )
+
+            submit_button = st.form_submit_button(label='Apply', type="primary")
 
     if submit_button:
-        if 'Group' in adata.obs.columns:
-            if batch_correction_method == 'ComBat':
-                start_time = time.time()
-                sc.pp.combat(adata, key='Group')
-                elapsed_time = time.time() - start_time
-                st.write(f"Batch correction completed using ComBat in {elapsed_time:.2f} seconds")
-            else:
-                st.write("No batch correction applied.")
-        else:
+        if 'Group' not in adata.obs.columns:
             st.write("The 'Group' column does not exist in adata.obs.")
+            st.session_state.batch_correction_done = True
+        elif batch_correction_method == 'None':
+            st.write("No batch correction applied.")
+            st.session_state.batch_correction_done = True
+        else:
+            batch_map = dict(zip(
+                batch_assignment_df['SampleID'].astype(str),
+                batch_assignment_df['Batch'].astype(str),
+            ))
+            adata.obs['Batch'] = adata.obs['SampleID'].astype(str).map(batch_map)
 
-        st.session_state.batch_correction_done = True
+            start_time = time.time()
+            ok, msg = run_combat_correction(adata, batch_key='Batch', covariates=('Group',))
+            elapsed_time = time.time() - start_time
+
+            if not ok:
+                st.error(msg)
+                adata.obs.drop(columns=['Batch'], inplace=True, errors='ignore')
+            else:
+                st.write(f"{msg} (in {elapsed_time:.2f} seconds)")
+                st.session_state.batch_correction_done = True
 
     return adata
 
 def compute_umap_leiden(adata):
-    st.write("Proceeding with UMAP and Leiden clustering.")
-
-    with st.form(key='umap_leiden_form'):
-        resolution = st.slider(
-            "Leiden Resolution",
-            min_value=0.01,
-            max_value=2.5,
-            value=0.5,
-            step=0.01,
-            help="Lower values yield fewer, larger clusters; higher values yield more, smaller clusters."
+    with st.expander("UMAP & Leiden settings", expanded=True):
+        st.caption(
+            "These parameters control the embedding and clustering. "
+            "Lower resolution yields fewer, larger clusters; higher resolution yields more, smaller ones."
         )
 
-        n_neighbors = st.slider(
-            "n_neighbors for neighbors computation",
-            min_value=5,
-            max_value=50,
-            value=15,
-            step=1,
-            help="Controls the local neighborhood size."
-        )
-        min_dist = st.slider(
-            "UMAP min_dist",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.1,
-            step=0.01,
-            help="Controls how tightly UMAP packs points together."
-        )
+        with st.form(key='umap_leiden_form'):
+            resolution = st.slider(
+                "Leiden Resolution",
+                min_value=0.01,
+                max_value=2.5,
+                value=0.5,
+                step=0.01,
+                help="Lower values yield fewer, larger clusters; higher values yield more, smaller clusters."
+            )
 
-        metric_options = [
-            'euclidean', 'manhattan', 'cosine', 'correlation',
-            'chebyshev', 'canberra', 'minkowski', 'hamming'
-        ]
-        selected_metric = st.selectbox(
-            "Select distance metric for neighbors computation",
-            options=metric_options,
-            index=0,
-            help="Determines how distances between data points are calculated."
-        )
+            col1, col2 = st.columns(2)
+            with col1:
+                n_neighbors = st.slider(
+                    "n_neighbors",
+                    min_value=5,
+                    max_value=50,
+                    value=15,
+                    step=1,
+                    help="Controls the local neighborhood size."
+                )
+                min_dist = st.slider(
+                    "UMAP min_dist",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.1,
+                    step=0.01,
+                    help="Controls how tightly UMAP packs points together."
+                )
+            with col2:
+                metric_options = [
+                    'euclidean', 'manhattan', 'cosine', 'correlation',
+                    'chebyshev', 'canberra', 'minkowski', 'hamming'
+                ]
+                selected_metric = st.selectbox(
+                    "Distance metric",
+                    options=metric_options,
+                    index=0,
+                    help="Determines how distances between data points are calculated."
+                )
 
-        submit_button = st.form_submit_button(label='Apply and Compute')
-
+            submit_button = st.form_submit_button(label='Apply and Compute', type="primary")
 
     if submit_button:
 
@@ -263,11 +230,12 @@ def compute_umap_leiden(adata):
             del cluster_sample_percentages
             del median_df
             del medians
-            clear_memory()
             st.session_state['leiden_computed'] = True
             st.session_state['umap_computed'] = True
 
     return adata
+
+# ── Session state initialisation ─────────────────────────────────────────────
 
 if 'adata' not in st.session_state:
     st.session_state['adata'] = None
@@ -283,101 +251,179 @@ if 'perform_pca' not in st.session_state:
     st.session_state['perform_pca'] = False
 
 
-st.title("Semi Supervised Clustering")
-st.write("*Semi supervised clustering allows a user to select a number of markers, or a cell type (i.e. based on marker selection) to construct Leiden clusters. This is useful to find out a specific cell population.*")
+page_header(
+    "Semi Supervised Clustering",
+    subtitle="Build Leiden clusters from a chosen subset of markers (or a marker-defined cell type) to isolate a specific cell population.",
+)
+
+# A2: In web mode, show offline-only warning and halt
+if IS_WEB:
+    st.warning("This module is only available for offline use. Please download the App from https://github.com/mhbsiam/cafe/releases and run it locally.")
+    st.stop()
 
 option = st.radio(
     "Choose your option:",
-    ["None", "Subset by removing markers", "Subset by cell type"]
+    ["Subset by removing markers", "Subset by cell type"]
 )
 
-if option == 'None':
-
+if st.button("Apply", type="primary"):
+    # B10 fix: only clear selective-clustering-specific keys, not all session state.
+    # Wiping everything destroys adata and other pages' state.
     for key in list(st.session_state.keys()):
-        del st.session_state[key]
-elif option in ['Subset by removing markers', 'Subset by cell type']:
+        if key.startswith('selective_') or key.startswith('subset_'):
+            del st.session_state[key]
+    st.session_state['adata'] = None
+    st.session_state['pca_done'] = False
+    st.session_state['batch_correction_done'] = False
+    st.session_state['leiden_computed'] = False
+    st.session_state['umap_computed'] = False
+    st.session_state['perform_pca'] = False
+    st.session_state['option_confirmed'] = option
+    st.rerun()
+
+# Only show the pipeline after Apply has been pressed at least once
+_confirmed_option = st.session_state.get('option_confirmed')
+if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
+    option = _confirmed_option  # use the confirmed option for all downstream logic
+
+if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
+
+    # ── Pipeline progress indicator ───────────────────────────────────────────
+    # Determine current step (1–5) from session state flags
+    _steps = [
+        "Upload & subset",
+        "PCA",
+        "Batch correction",
+        "UMAP & Leiden",
+        "Complete",
+    ]
+    if st.session_state.get('umap_computed', False):
+        _current_step = 5
+    elif st.session_state.get('batch_correction_done', False):
+        _current_step = 4
+    elif st.session_state.get('pca_done', False):
+        _current_step = 3
+    elif st.session_state['adata'] is not None:
+        _current_step = 2
+    else:
+        _current_step = 1
+
+    _step_label = _steps[_current_step - 1]
+    st.progress(_current_step / len(_steps))
+    st.caption(f"**Step {_current_step} of {len(_steps)} — {_step_label}**")
+
+    st.markdown("---")
+
+    # ── Step 1: Upload & subset ───────────────────────────────────────────────
     if st.session_state['adata'] is None:
-        uploaded_files = st.file_uploader("Choose CSV files", type="csv", accept_multiple_files=True)
-        if not uploaded_files:
-            st.warning("Please upload CSV files to proceed.")
-        else:
-            df = process_csv_files(uploaded_files)
-
+        with st.expander("Upload & subset configuration", expanded=True):
             if option == 'Subset by removing markers':
-                all_columns = df.columns.tolist()
-                marker_columns = [col for col in all_columns if col not in ['SampleID', 'Group', 'Sample']]
-
-                selected_markers = st.multiselect(
-                    "Select markers to retain for AnnData creation",
-                    marker_columns,
-                    default=marker_columns
+                st.caption(
+                    "Upload your per-sample CSV files. Then select the markers to **retain** "
+                    "for AnnData creation — deselect any markers you want to exclude from clustering."
+                )
+            else:
+                st.caption(
+                    "Upload your per-sample CSV files. Then choose a marker whose positive "
+                    "expression (> 0) defines the cell type subset you want to re-cluster."
                 )
 
-                if st.button("Submit Marker Selection"):
+            uploaded_files = st.file_uploader("Choose CSV files", type="csv", accept_multiple_files=True)
 
-                    expr_data = df[selected_markers]
+            if not uploaded_files:
+                st.warning("Please upload CSV files to proceed.")
+            else:
+                df = process_csv_files(uploaded_files)
+
+                if option == 'Subset by removing markers':
+                    all_columns = df.columns.tolist()
+                    marker_columns = [col for col in all_columns if col not in ['SampleID', 'Group', 'Sample']]
+
+                    selected_markers = st.multiselect(
+                        "Select markers to retain for AnnData creation",
+                        marker_columns,
+                        default=marker_columns
+                    )
+
+                    if st.button("Submit Marker Selection", type="primary"):
+
+                        expr_data = df[selected_markers]
+                        expr_data = expr_data.select_dtypes(include=[float, int])
+
+                        st.write("Selected Markers:")
+                        st.write(selected_markers)
+                        st.write(f"Expression data shape: {expr_data.shape}")
+
+                        metadata = df[['SampleID', 'Group']]
+                        expr_data.index = expr_data.index.astype(str)
+                        metadata.index = metadata.index.astype(str)
+
+                        adata = sc.AnnData(expr_data)
+                        adata.obs = metadata
+                        adata.var_names = expr_data.columns.astype(str)
+                        st.session_state['adata'] = adata
+                        st.write("AnnData object created.")
+
+                elif option == 'Subset by cell type':
+
+                    expr_data = df.drop(columns=['SampleID', 'Group'])
                     expr_data = expr_data.select_dtypes(include=[float, int])
 
-                    st.write("Selected Markers:")
-                    st.write(selected_markers)
-                    st.write(f"Expression data shape: {expr_data.shape}")
+                    available_markers = expr_data.columns.tolist()
+                    selected_marker = st.selectbox(
+                        "Select a marker to subset the data based on its expression:",
+                        available_markers,
+                        help="Cells with zero or negative expression of this marker will be excluded."
+                    )
 
-                    metadata = df[['SampleID', 'Group']]
-                    expr_data.index = expr_data.index.astype(str)
-                    metadata.index = metadata.index.astype(str)
+                    # Live cell count preview — updates reactively as marker changes
+                    if selected_marker:
+                        n_total_cells = len(expr_data)
+                        n_passing = int((expr_data[selected_marker] > 0).sum())
+                        pct_passing = n_passing / n_total_cells * 100 if n_total_cells > 0 else 0
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("Cells passing filter", f"{n_passing:,}")
+                        with col_b:
+                            st.metric("% of total", f"{pct_passing:.1f}%")
+                        st.caption(f"Cells with {selected_marker} > 0 out of {n_total_cells:,} total")
 
-                    adata = sc.AnnData(expr_data)
-                    adata.obs = metadata
-                    adata.var_names = expr_data.columns.astype(str)
-                    st.session_state['adata'] = adata
-                    st.write("AnnData object created.")
+                    if st.button("Apply Subsetting", type="primary"):
+                        st.write(f"Original data shape: {expr_data.shape}")
 
-            elif option == 'Subset by cell type':
+                        valid_cells = expr_data[selected_marker] > 0
+                        expr_data = expr_data[valid_cells]
+                        df_subset = df.loc[expr_data.index]
 
-                expr_data = df.drop(columns=['SampleID', 'Group'])
-                expr_data = expr_data.select_dtypes(include=[float, int])
+                        st.write(f"Data shape after subsetting based on '{selected_marker}': {expr_data.shape}")
 
-                available_markers = expr_data.columns.tolist()
-                selected_marker = st.selectbox(
-                    "Select a marker to subset the data based on its expression:",
-                    available_markers,
-                    help="Select a marker to remove cells with zero or negative expression."
-                )
+                        metadata = df_subset[['SampleID', 'Group']]
+                        expr_data.index = expr_data.index.astype(str)
+                        metadata.index = metadata.index.astype(str)
 
-                if st.button("Apply Subsetting"):
-                    st.write(f"Original data shape: {expr_data.shape}")
-
-                    valid_cells = expr_data[selected_marker] > 0
-                    expr_data = expr_data[valid_cells]
-                    df_subset = df.loc[expr_data.index]
-
-                    st.write(f"Data shape after subsetting based on '{selected_marker}': {expr_data.shape}")
-
-                    metadata = df_subset[['SampleID', 'Group']]
-                    expr_data.index = expr_data.index.astype(str)
-                    metadata.index = metadata.index.astype(str)
-
-                    adata = sc.AnnData(expr_data)
-                    adata.obs = metadata
-                    adata.var_names = expr_data.columns.astype(str)
-                    st.session_state['adata'] = adata
-                    st.write("AnnData object created after subsetting.")
+                        adata = sc.AnnData(expr_data)
+                        adata.obs = metadata
+                        adata.var_names = expr_data.columns.astype(str)
+                        st.session_state['adata'] = adata
+                        st.write("AnnData object created after subsetting.")
     else:
         adata = st.session_state['adata']
 
-
+    # ── Step 2: PCA ───────────────────────────────────────────────────────────
     if st.session_state['adata'] is not None and not st.session_state.get('pca_done', False):
-        st.write("Choose whether to perform PCA on the data.")
 
-        with st.form(key='pca_selection_form'):
-            pca_option = st.radio(
-                "Select PCA option",
-                ('None', 'Perform PCA'),
-                index=1 if st.session_state.get('perform_pca', False) else 0,
-                key='pca_option_radio'
-            )
+        with st.expander("PCA", expanded=True):
+            st.caption("Dimensionality reduction before clustering. PCA is optional — skip it if your panel is small or you prefer to cluster in marker space directly.")
 
-            submit_pca_selection = st.form_submit_button(label='Proceed')
+            with st.form(key='pca_selection_form'):
+                pca_option = st.radio(
+                    "Select PCA option",
+                    ('None', 'Perform PCA'),
+                    index=1 if st.session_state.get('perform_pca', False) else 0,
+                    key='pca_option_radio'
+                )
+
+                submit_pca_selection = st.form_submit_button(label='Proceed', type="primary")
 
         if submit_pca_selection:
             if pca_option == 'Perform PCA':
@@ -389,24 +435,25 @@ elif option in ['Subset by removing markers', 'Subset by cell type']:
 
     if st.session_state.get('perform_pca', False) and not st.session_state.get('pca_done', False):
 
-        st.write("PCA has been selected. Now choose the PCA options below.")
+        with st.expander("PCA settings", expanded=True):
+            st.caption("Choose the SVD solver and the variance threshold that determines how many principal components to retain.")
 
-        with st.form(key='pca_options_form'):
+            with st.form(key='pca_options_form'):
 
-            pca_solver = st.selectbox(
-                "Choose the SVD solver for PCA",
-                ('auto', 'full', 'arpack', 'randomized'),
-                key='pca_solver'
-            )
+                pca_solver = st.selectbox(
+                    "Choose the SVD solver for PCA",
+                    ('auto', 'full', 'arpack', 'randomized'),
+                    key='pca_solver'
+                )
 
-            variance_threshold = st.slider(
-                "Select the explained variance threshold (%) to retain",
-                min_value=70, max_value=99,
-                value=95,
-                key='variance_threshold'
-            )
+                variance_threshold = st.slider(
+                    "Select the explained variance threshold (%) to retain",
+                    min_value=70, max_value=99,
+                    value=95,
+                    key='variance_threshold'
+                )
 
-            apply_pca_button = st.form_submit_button(label='Apply PCA')
+                apply_pca_button = st.form_submit_button(label='Apply PCA', type="primary")
 
         if apply_pca_button:
             adata = st.session_state['adata']
@@ -415,7 +462,13 @@ elif option in ['Subset by removing markers', 'Subset by cell type']:
 
             pca_variance_ratio = adata.uns['pca']['variance_ratio'].cumsum()
 
-            num_components = (pca_variance_ratio >= variance_threshold / 100).argmax() + 1
+            # B12 fix: handle case where no component reaches the variance threshold
+            threshold_mask = pca_variance_ratio >= variance_threshold / 100
+            if not threshold_mask.any():
+                st.warning(f"No principal component reaches {variance_threshold}% variance. Using all {len(pca_variance_ratio)} components.")
+                num_components = len(pca_variance_ratio)
+            else:
+                num_components = threshold_mask.argmax() + 1
 
             adata.obsm['X_pca'] = adata.obsm['X_pca'][:, :num_components]
             adata.varm['PCs'] = adata.varm['PCs'][:, :num_components]
@@ -441,14 +494,14 @@ elif option in ['Subset by removing markers', 'Subset by cell type']:
             st.session_state.pca_done = True
             st.session_state.adata = adata
 
+    # ── Step 3: Batch correction ───────────────────────────────────────────────
     if st.session_state.get('pca_done', False) and not st.session_state.get('batch_correction_done', False):
         adata = perform_batch_correction(st.session_state['adata'])
         st.session_state['adata'] = adata
 
+    # ── Step 4: UMAP & Leiden ─────────────────────────────────────────────────
     if st.session_state.get('batch_correction_done', False) and not st.session_state.get('umap_computed', False):
         adata = compute_umap_leiden(st.session_state['adata'])
         st.session_state['adata'] = adata
 else:
-    st.write("Please select an option to proceed.")
-
-clear_memory()
+    st.caption("Select an option above and press **Apply** to begin.")
