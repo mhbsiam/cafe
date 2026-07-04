@@ -1,3 +1,5 @@
+@import url("https://fonts.bunny.net/css?family=source-sans-3:400,600,700&display=swap");
+
 /* CAFE Docs — Starlight theme overrides to match the app design system. */
 
 :root {
@@ -47,5 +49,3 @@
   --sl-color-gray-6: #9bb4ba;
   --sl-color-gray-7: #f0f5f7;
 }
-
-@import url("https://fonts.bunny.net/css?family=source-sans-3:400,600,700&display=swap");
