@@ -421,16 +421,12 @@ if not st.session_state.pca_done:
     if not st.session_state.pca_selected:
         with st.form(key="pca_selection_form"):
             pca_option = st.radio(
-                "Select PCA option", ("None", "Perform PCA"), key="pca_option"
+                "Select PCA option", ("Skip PCA", "Perform PCA"), key="pca_option"
             )
-            col_skip, col_run = st.columns([1, 3])
-            with col_skip:
-                skip_button = st.form_submit_button(label="Skip PCA", type="secondary")
-            with col_run:
-                proceed_button = st.form_submit_button(label="Proceed", type="primary")
+            proceed_button = st.form_submit_button(label="Proceed", type="primary")
 
-        if proceed_button or skip_button:
-            if skip_button or pca_option == "None":
+        if proceed_button:
+            if pca_option == "Skip PCA":
                 st.session_state.pca_done = True
                 st.session_state.pca_selected = False
             else:
