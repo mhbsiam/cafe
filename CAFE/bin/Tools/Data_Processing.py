@@ -306,12 +306,6 @@ if not st.session_state.qc_done:
                 sens_df.style.background_gradient(cmap="YlGnBu", axis=1),
                 width='stretch',
             )
-        else:
-            info_card(
-                title="QC skipped",
-                body="No cells will be removed. Proceed directly to PCA.",
-                kind="warning",
-            )
 
     apply_qc_button = st.button(
         label="Apply QC", type="primary", key="apply_qc_button"
