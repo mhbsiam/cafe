@@ -19,6 +19,7 @@ export default defineConfig({
           href: "https://github.com/mhbsiam/cafe",
         },
       ],
+      customCss: ["./src/styles/custom.css"],
       sidebar: [
         {
           label: "Getting Started",
