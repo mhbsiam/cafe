@@ -163,7 +163,7 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
         'Inertia': inertia_values
     })
     st.subheader("Clustering Evaluation Metrics")
-    st.dataframe(result_df, use_container_width=True)
+    st.dataframe(result_df, width='stretch')
 
     # ── Metric interpretation guide ───────────────────────────────────────────
     with st.expander("How to read these metrics", expanded=False):
@@ -289,7 +289,7 @@ Plot against number of clusters and look for the point where the curve bends sha
     dashboard.update_yaxes(title_text="DB Score", row=2, col=1, gridcolor="#E8E8E8")
     dashboard.update_yaxes(title_text="Inertia", row=2, col=2, gridcolor="#E8E8E8")
 
-    st.plotly_chart(dashboard, use_container_width=True)
+    st.plotly_chart(dashboard, width='stretch')
 
 
 if st.button('Run Analysis', type="primary") and not IS_WEB:

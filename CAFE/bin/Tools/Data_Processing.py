@@ -297,14 +297,14 @@ if not st.session_state.qc_done:
                 summary_df.style.background_gradient(
                     subset=["% removed"], cmap="YlGnBu"
                 ),
-                use_container_width=True,
+                width='stretch',
             )
             st.caption(
                 "Sensitivity — % of cells removed at each n_MADs. A row that climbs steeply as n_MADs drops is threshold-sensitive."
             )
             st.dataframe(
                 sens_df.style.background_gradient(cmap="YlGnBu", axis=1),
-                use_container_width=True,
+                width='stretch',
             )
         else:
             info_card(
@@ -392,7 +392,7 @@ if not st.session_state.qc_done:
             ax.set_xlabel("Total marker signal per cell")
             ax.set_ylabel("Number of cells")
             ax.set_title("Per-cell total signal (MAD outlier cutoffs)")
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, width='stretch')
             plt.close(fig)
 
             adata = adata[~remove_mask].copy()
@@ -405,7 +405,7 @@ if not st.session_state.qc_done:
                 f"Retained {adata.n_obs:,} cells."
             )
             st.write("Cells removed per sample:")
-            st.dataframe(removed_summary, use_container_width=True)
+            st.dataframe(removed_summary, width='stretch')
             st.caption(f"QC completed in {time.time() - start_time:.2f} seconds")
         st.rerun()
 
@@ -499,13 +499,13 @@ if not st.session_state.pca_done:
         ax.set_ylabel("Explained Variance Ratio")
         ax.set_title("Explained Variance by PCA Components")
         ax.set_xticks(range(1, num_components + 1))
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
         st.write("PCA Results by Group:")
         fig, ax = plt.subplots()
         sc.pl.pca(st.session_state.adata, color="Group", ax=ax, show=False)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
         st.success(f"PCA completed in {time.time() - start_time:.2f} seconds. Retained {num_components} components.")
@@ -556,7 +556,7 @@ if not st.session_state.batch_correction_done:
             ),
             disabled=["SampleID", "Group"],
             hide_index=True,
-            use_container_width=True,
+            width='stretch',
             key="batch_assignment_editor",
         )
 
@@ -592,7 +592,7 @@ if not st.session_state.batch_correction_done:
                 st.subheader("PCA After Batch Correction")
                 fig, ax = plt.subplots()
                 sc.pl.pca(adata, color="Group", ax=ax, show=False)
-                st.pyplot(fig, use_container_width=True)
+                st.pyplot(fig, width='stretch')
                 plt.close(fig)
 
                 st.session_state.adata = adata
@@ -810,58 +810,61 @@ if not st.session_state.umap_computed:
 # ---------------------------------------------------------------------------
 # Step 5: Export
 # ---------------------------------------------------------------------------
-section_header(
-    "Export Results",
-    subtitle="Download the processed AnnData object and per-cluster tables.",
-    step=6,
-)
-
-adata = st.session_state.adata
-
-info_card(
-    title="Pipeline summary",
-    body=(
-        f"- <strong>{adata.n_obs:,}</strong> cells after QC<br>"
-        f"- <strong>{adata.obs['SampleID'].nunique()}</strong> samples<br>"
-        f"- <strong>{adata.obs['leiden'].nunique()}</strong> Leiden clusters<br>"
-        f"- PCA: {'yes' if st.session_state.get('pca_selected') else 'no'}<br>"
-        f"- Batch correction: {'yes' if 'Batch' in adata.obs.columns else 'no'}"
-    ),
-    kind="success",
-)
-
-zip_buffer = st.session_state.get("_last_zip_buffer")
-zip_file_name = st.session_state.get("_last_zip_name", "analysis_outputs.zip")
-if zip_buffer is not None:
-    st.download_button(
-        label="Download All Outputs as ZIP",
-        data=zip_buffer,
-        file_name=zip_file_name,
-        mime="application/zip",
-        type="primary",
-    )
+adata = st.session_state.get("adata")
+if adata is None:
+    st.error("No processed data found. Please complete the pipeline first.")
+    st.stop()
 else:
-    st.warning("No ZIP output found in session. Return to UMAP + Leiden and recompute.")
+    section_header(
+        "Export Results",
+        subtitle="Download the processed AnnData object and per-cluster tables.",
+        step=6,
+    )
 
-info_card(
-    title="Next step",
-    body="Upload the downloaded <code>.h5ad</code> file to the Visualization page to explore clusters and produce publication figures.",
-    kind="info",
-)
+    info_card(
+        title="Pipeline summary",
+        body=(
+            f"- <strong>{adata.n_obs:,}</strong> cells after QC<br>"
+            f"- <strong>{adata.obs['SampleID'].nunique()}</strong> samples<br>"
+            f"- <strong>{adata.obs['leiden'].nunique()}</strong> Leiden clusters<br>"
+            f"- PCA: {'yes' if st.session_state.get('pca_selected') else 'no'}<br>"
+            f"- Batch correction: {'yes' if 'Batch' in adata.obs.columns else 'no'}"
+        ),
+        kind="success",
+    )
 
-if st.button("Start over", type="secondary", key="dp_start_over"):
-    for key in [
-        "adata",
-        "uploaded_files",
-        "batch_correction_done",
-        "umap_computed",
-        "pca_done",
-        "leiden_computed",
-        "qc_done",
-        "pca_selected",
-        "_qc_total_signal",
-        "_last_zip_buffer",
-        "_last_zip_name",
-    ]:
-        st.session_state.pop(key, None)
-    st.rerun()
+    zip_buffer = st.session_state.get("_last_zip_buffer")
+    zip_file_name = st.session_state.get("_last_zip_name", "analysis_outputs.zip")
+    if zip_buffer is not None:
+        st.download_button(
+            label="Download All Outputs as ZIP",
+            data=zip_buffer,
+            file_name=zip_file_name,
+            mime="application/zip",
+            type="primary",
+        )
+    else:
+        st.warning("No ZIP output found in session. Return to UMAP + Leiden and recompute.")
+
+    info_card(
+        title="Next step",
+        body="Upload the downloaded <code>.h5ad</code> file to the Visualization page to explore clusters and produce publication figures.",
+        kind="info",
+    )
+
+    if st.button("Start over", type="secondary", key="dp_start_over"):
+        for key in [
+            "adata",
+            "uploaded_files",
+            "batch_correction_done",
+            "umap_computed",
+            "pca_done",
+            "leiden_computed",
+            "qc_done",
+            "pca_selected",
+            "_qc_total_signal",
+            "_last_zip_buffer",
+            "_last_zip_name",
+        ]:
+            st.session_state.pop(key, None)
+        st.rerun()
