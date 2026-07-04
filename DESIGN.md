@@ -16,9 +16,9 @@
 | `--cafe-primary-hover` | `#0a3d57` | Button hover, pressed state |
 | `--cafe-primary-light` | `#e6f1f4` | Tinted backgrounds for selected/highlighted items |
 | `--cafe-primary-lighter` | `#f0f6f8` | Subtle surface tints |
-| `--cafe-background` | `#f8fbfc` | Page background |
-| `--cafe-surface` | `#f0f5f7` | Cards, expanders, form sections |
-| `--cafe-surface-hover` | `#e5edef` | Hover state on surface elements |
+| `--cafe-background` | `#ffffff` | Page background |
+| `--cafe-surface` | `#f8f9fa` | Cards, expanders, form sections |
+| `--cafe-surface-hover` | `#e9ecef` | Hover state on surface elements |
 | `--cafe-border` | `#d5e0e4` | Dividers, borders, inactive stepper rings |
 | `--cafe-text` | `#1a262a` | Primary text, headings |
 | `--cafe-text-muted` | `#5c6e74` | Secondary text, captions, labels |
