@@ -1,29 +1,29 @@
-import streamlit as st
-import scanpy as sc
-import re
-import matplotlib.pyplot as plt
-import os
-import zipfile
-import tempfile
-import random
 import io
+import os
+import random
+import re
+import tempfile
+import zipfile
 
+import matplotlib.pyplot as plt
+import scanpy as sc
+import streamlit as st
+
+from theme import apply_theme, page_header
 
 st.set_page_config(layout="centered")
+apply_theme()
 
-image_path = os.path.join('bin', 'img', 's_logo.png')
-st.logo(image_path)
+st.logo(os.path.join('bin', 'img', 's_logo.png'))
 
-# Display an image
-image_path = os.path.join('bin', 'img', 'logo_v2.png')
-st.image(image_path, caption='', use_container_width=True)
-
-st.title("Merge Clusters")
-st.write('*This module allows users to merge subclusters into metaclusters and save the new adata file.*')
+page_header(
+    "Merge Clusters",
+    subtitle="Merge subclusters into metaclusters and save the new AnnData file.",
+)
 
 with st.form(key='upload_form'):
     uploaded_file = st.file_uploader("Upload AnnData (.h5ad) file", type="h5ad")
-    submit_upload = st.form_submit_button("Load AnnData")
+    submit_upload = st.form_submit_button("Load AnnData", type="primary")
 
 if 'adata' not in st.session_state:
     st.session_state.adata = None
@@ -56,17 +56,18 @@ if st.session_state.adata is not None:
     ax.set_yticks([])
 
     st.pyplot(fig)
+    plt.close(fig)
 
     st.divider()
     image_path = os.path.join('bin', 'img', 'merging.png')
-    st.image(image_path, caption='', use_container_width=True)
+    st.image(image_path, caption='Example of merging several Leiden clusters into one combined cluster.', width='stretch')
     st.divider()
     with st.form(key='merge_form'):
         merge_input = st.text_input(
             "Enter clusters to merge in the format {new_cluster_name:old_cluster,old_cluster}. For example: {1:7,3,8}, {2:5,9,4}",
             value="{1:7,3,8}, {2:5,9,4}"
         )
-        submit_merge = st.form_submit_button("Merge Clusters")
+        submit_merge = st.form_submit_button("Merge Clusters", type="primary")
 
     if merge_input and submit_merge:
         progress_bar = st.progress(0)
@@ -104,6 +105,7 @@ if st.session_state.adata is not None:
         ax.set_xticks([])
         ax.set_yticks([])
         st.pyplot(fig)
+        plt.close(fig)
         progress_bar.progress(75)
 
         random_number = random.randint(1000, 9999)
