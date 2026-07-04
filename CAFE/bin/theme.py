@@ -433,18 +433,7 @@ _INFO_CARD_CSS = """
   background: var(--cafe-surface);
   margin-bottom: var(--cafe-space-md);
 }
-.cafe-info-card--info {
-  border-left: 4px solid var(--cafe-primary);
-}
-.cafe-info-card--warning {
-  border-left: 4px solid var(--cafe-warning);
-}
-.cafe-info-card--error {
-  border-left: 4px solid var(--cafe-error);
-}
-.cafe-info-card--success {
-  border-left: 4px solid var(--cafe-success);
-}
+
 .cafe-info-card__title {
   margin: 0 0 var(--cafe-space-xs) 0;
   font-size: 1rem;
