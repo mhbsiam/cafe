@@ -83,9 +83,14 @@ CAFE is a **no-code bioinformatics web app** for analyzing spectral flow cytomet
 
 | Path | Role |
 |------|------|
-| `App/CAFE.py` | Welcome/landing page, CSV format instructions |
+| `App/CAFE.py` | Welcome/landing page (desktop build) |
+| `App/landing_content.py` | Shared landing page content used by desktop and web builds |
+| `web/CAFE.py` | Welcome/landing page (hosted build) |
+| `theme.py` | Shared design tokens, CSS, and page-header helpers |
 | `Tools/Data_Processing.py` | CSV ingestion, preprocessing, session state |
 | `Tools/Visualization.py` | Core analysis: UMAP, clustering, all plots (~4300 lines) |
+| `Tools/_plot_export.py` | Deferred download button for large figures |
+| `Tools/utils.py` | Shared CSV, batch correction, and statistical helpers |
 | `Adv/Merge_Clusters.py` | Post-clustering merge operations |
 | `Adv/Cluster_Annotation.py` | Manual cluster labeling |
 | `Adv/Cluster_Evaluation.py` | Cluster quality metrics |
@@ -108,4 +113,4 @@ CSV upload → Pandas DataFrame → AnnData object (stored in `st.session_state`
 
 - All inter-page state lives in `st.session_state`
 - Each page checks for required session keys at the top and shows an error if prerequisites are missing (user must run Data Processing before Visualization)
-- The `.streamlit/config.toml` sets the theme (red primary color, sans-serif font)
+- The `.streamlit/config.toml` and `CAFE/bin/theme.py` set the theme (teal `#0f5070` primary color, Source Sans 3 font, shared design tokens)
