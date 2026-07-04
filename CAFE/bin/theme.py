@@ -529,10 +529,13 @@ def page_header(title: str, subtitle: str | None = None):
 def section_header(title: str, subtitle: str | None = None, step: int | None = None):
     """Render a styled section header with optional step number."""
     prefix = f"{step}. " if step is not None else ""
+    subtitle_html = (
+        f'<p class="cafe-section-header__subtitle">{subtitle}</p>' if subtitle else ""
+    )
     st.markdown(
         f'<div class="cafe-section-header">'
         f'<h3 class="cafe-section-header__title">{prefix}{title}</h3>'
-        f'{f"<p class=\"cafe-section-header__subtitle\">{subtitle}</p>" if subtitle else ""}'
+        f"{subtitle_html}"
         f"</div>",
         unsafe_allow_html=True,
     )
