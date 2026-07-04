@@ -106,7 +106,7 @@ def render_landing_page(
     st.markdown(
         "Marker names as column headers and numerical values representing expression levels."
     )
-    st.dataframe(pd.DataFrame(_EXAMPLE_CSV_DATA), use_container_width=True)
+    st.dataframe(pd.DataFrame(_EXAMPLE_CSV_DATA), width='stretch')
 
     st.subheader("2. Load CSV files")
     st.markdown("Select all CSV files together and upload them on the Data Processing page.")

@@ -87,7 +87,7 @@ if st.session_state.adata is not None:
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_title('')
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col_ann:
