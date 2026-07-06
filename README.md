@@ -44,7 +44,7 @@ Click [here](https://mhbsiam.github.io/cafe) to access the guide for installatio
 
 CAFE runs on **Python 3.12**. The **Pixi** and **Conda** routes install the
 correct Python for you automatically, so you don't need Python set up
-beforehand — pick one of those if you're unsure. The **pipx** route uses your
+beforehand —> pick one of those if you're unsure. The **pipx** route uses your
 own Python.
 
 First download and extract the CAFE release (see
