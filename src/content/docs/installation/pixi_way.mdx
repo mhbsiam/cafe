@@ -1,13 +1,25 @@
 ---
-title: Pixi Way (for compatibility)
-description: Install CAFE using Pixie.
+title: Pixi Way (recommended)
+description: Install CAFE using Pixi.
 sidebar:
-    order: 1
+    order: 0
     label: Pixi Way
     badge:
-        text: Compatibility
+        text: Recommended
         variant: success
 ---
+import {Aside} from '@astrojs/starlight/components';
+
+This is the most reliable way to set up CAFE. Pixi creates an isolated
+environment and installs the **correct Python (3.12)** and every dependency for
+you — so you don't need Python installed on your machine beforehand.
+
+<Aside type='tip' title='No Python required'>
+You do **not** need to install Python 3.12 yourself for the Pixi (or Conda)
+route. Pixi reads `pixi.toml` and provisions the right Python automatically.
+</Aside>
+
+## 1. Install Pixi
 
 #### For Mac/Linux:  
 Run the following command to install Pixi for Mac/Linux:
@@ -23,3 +35,21 @@ iwr -useb https://pixi.sh/install.ps1 | iex
 ```bash
 pixi self-update --version 0.72.0
 ```
+
+Close and reopen your terminal after installing so the `pixi` command is found.
+
+## 2. Get the CAFE files
+
+Download and extract the CAFE release (see [How to download](/cafe/installation/download/)),
+then open a terminal in the extracted `./CAFE` folder — the one containing
+`cafe.py` and `pixi.toml`.
+
+## 3. Run CAFE
+
+From that folder, Pixi installs everything and launches the app in one step:
+
+```bash
+pixi run cafe
+```
+
+The app opens in your web browser automatically.

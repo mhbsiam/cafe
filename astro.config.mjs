@@ -33,9 +33,9 @@ export default defineConfig({
             {
               label: "Installation",
               items: [
-                "installation/pipx_way",
                 "installation/pixi_way",
                 "installation/conda_way",
+                "installation/pipx_way",
               ],
             },
             "installation/run_cafe",

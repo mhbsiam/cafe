@@ -1,11 +1,11 @@
 ---
-title: pipx Way (easiest)
+title: pipx Way (global command)
 description: Install CAFE as a global "cafe" command with pipx or uv.
 sidebar:
-    order: 0
+    order: 2
     label: pipx Way
     badge:
-        text: Easiest
+        text: Global command
         variant: tip
 ---
 
@@ -19,12 +19,39 @@ cafe
 The app opens in your web browser automatically. No need to `cd` into a folder
 or activate an environment first.
 
-## Prerequisites
+Unlike the Pixi and Conda routes, pipx uses **your own** Python — so you need
+**Python 3.12** available first.
 
-You need **Python 3.12** and **pipx** installed once:
+:::tip[Don't want to manage Python?]
+Use the [Pixi Way](/cafe/installation/pixi_way/) or
+[Conda Way](/cafe/installation/conda_way/) instead — they install the right
+Python for you automatically.
+:::
+
+## 1. Install Python 3.12
+
+The easiest option is **[uv](https://docs.astral.sh/uv/)**, a single download
+that also fetches the correct Python for you:
 
 ```bash
-# Install pipx (macOS/Linux)
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+If you use uv, you can skip pipx entirely and use `uv tool install` in place of
+`pipx install` in the commands below.
+
+Alternatively, install **Python 3.12** directly from
+[python.org](https://www.python.org/downloads/) (or your package manager) and
+continue with pipx.
+
+## 2. Install pipx
+
+```bash
+# macOS / Linux
 python3 -m pip install --user pipx
 python3 -m pipx ensurepath
 
@@ -36,16 +63,14 @@ py -m pipx ensurepath
 Close and reopen your terminal after `ensurepath` so the `cafe` command is
 found.
 
-:::tip[Don't have Python yet?]
-Use **[uv](https://docs.astral.sh/uv/)** instead — it's a single download that
-installs the right Python for you automatically. After installing uv, replace
-`pipx install` with `uv tool install` in the commands below.
-:::
+## 3. Install CAFE from GitHub
 
-## Install from GitHub
+CAFE is **not published on PyPI**, so you always install it straight from the
+GitHub repository:
 
 ```bash
 pipx install "git+https://github.com/mhbsiam/cafe"
+# uv: uv tool install "git+https://github.com/mhbsiam/cafe"
 ```
 
 Then launch it from any directory:
@@ -54,16 +79,18 @@ Then launch it from any directory:
 cafe
 ```
 
-To update to the latest version later:
+To update later, reinstall from the same URL to pull the newest version:
 
 ```bash
-pipx reinstall cafe-app
+pipx install --force "git+https://github.com/mhbsiam/cafe"
+# uv: uv tool install --force "git+https://github.com/mhbsiam/cafe"
 ```
 
-And to remove it:
+The installed package is named `cafe-app`. To remove it:
 
 ```bash
 pipx uninstall cafe-app
+# uv: uv tool uninstall cafe-app
 ```
 
 ## Install from a local wheel
