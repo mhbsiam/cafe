@@ -83,41 +83,41 @@ conda activate cafe
 > Already have a `cafe` environment from an older version? Remove it first with
 > `conda env remove -n cafe -y`, then recreate it.
 
-### pipx (global `cafe` command)
+### uv (global `cafe` command)
 
-This route gives you a global `cafe` command you can run from any folder. It
-uses your own Python, so it assumes you **already have Python 3.12** installed.
+This route gives you a global `cafe` command you can run from any folder. We use
+[uv](https://docs.astral.sh/uv/) here because it also installs the right
+**Python 3.12** for you, so it works even if you don't have Python installed.
 
-> Don't have Python 3.12? Use the **Pixi** or **Conda** route above instead —
-> they install the right Python for you automatically. This pipx route is the
-> convenience option for people who already have Python.
-
-**1. Install pipx:**
+**1. Install uv:**
 ```bash
 # macOS / Linux
-python3 -m pip install --user pipx && python3 -m pipx ensurepath
+curl -LsSf https://astral.sh/uv/install.sh | sh
 # Windows (PowerShell)
-py -m pip install --user pipx && py -m pipx ensurepath
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
-Reopen your terminal afterwards so the `cafe` command is found.
+Reopen your terminal afterwards so the `uv` command is found.
 
 **2. Install CAFE from GitHub** (CAFE is **not published on PyPI**, so you
 install it straight from the repository):
 ```bash
-pipx install "git+https://github.com/mhbsiam/cafe"
+uv tool install "git+https://github.com/mhbsiam/cafe"
 ```
 
 You can now run `cafe` from any terminal. To update to the latest version later:
 ```bash
-pipx install --force "git+https://github.com/mhbsiam/cafe"
+uv tool install --force "git+https://github.com/mhbsiam/cafe"
 ```
-To remove it: `pipx uninstall cafe-app` (the installed package is named `cafe-app`).
+To remove it: `uv tool uninstall cafe-app` (the installed package is named `cafe-app`).
+
+> Already use **pipx** and have Python 3.12? The same commands work with
+> `pipx install` / `pipx uninstall` in place of `uv tool install` / `uv tool uninstall`.
 
 ##
 
 ## Run CAFE
 
-If you installed with **pipx**, just open a terminal anywhere and run:
+If you installed with **uv**, just open a terminal anywhere and run:
 
 ```bash
 cafe

@@ -35,7 +35,7 @@ export default defineConfig({
               items: [
                 "installation/pixi_way",
                 "installation/conda_way",
-                "installation/pipx_way",
+                "installation/uv_way",
               ],
             },
             "installation/run_cafe",
