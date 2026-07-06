@@ -42,32 +42,19 @@ Click [here](https://mhbsiam.github.io/cafe) to access the guide for installatio
 ##
 ## Quick Installation
 
-### Easiest: pipx (gives you a global `cafe` command)
+CAFE runs on **Python 3.12**. The **Pixi** and **Conda** routes install the
+correct Python for you automatically, so you don't need Python set up
+beforehand — pick one of those if you're unsure. The **pipx** route uses your
+own Python.
 
-If you have **Python 3.12** and **[pipx](https://pipx.pypa.io/)** installed, you
-can install CAFE once and then run it from any folder by typing `cafe`:
+First download and extract the CAFE release (see
+[How to Download CAFE](#how-to-download-cafe)), then follow one of the methods
+below. See [Run CAFE](#run-cafe) to launch it afterwards.
 
-```bash
-# Install pipx once (macOS/Linux)
-python3 -m pip install --user pipx && python3 -m pipx ensurepath
-# then reopen your terminal
+### Recommended: Pixi
 
-# Install CAFE straight from GitHub
-pipx install "git+https://github.com/mhbsiam/cafe"
-```
-
-Then, from anywhere:
-
-```bash
-cafe
-```
-
-> No Python yet? Install [uv](https://docs.astral.sh/uv/) (a single download that
-> also fetches the right Python) and use `uv tool install "git+https://github.com/mhbsiam/cafe"`.
-
-Update later with `pipx reinstall cafe-app`; remove with `pipx uninstall cafe-app`.
-
-### Using Pixi Package Manager
+Pixi creates an isolated environment with the right Python (3.12) and every
+dependency for you.
 
 **For Mac/Linux**  
 Run the following command to install Pixi for Mac/Linux:
@@ -84,6 +71,54 @@ iwr -useb https://pixi.sh/install.ps1 | iex
 pixi self-update --version 0.72.0
 ```
 
+### Conda
+
+Conda also builds an isolated environment with the correct Python (3.12) from
+`cafe.yaml`. From the extracted `./CAFE` folder (the one containing `cafe.yaml`):
+```bash
+conda env create -f cafe.yaml
+conda activate cafe
+```
+
+> Already have a `cafe` environment from an older version? Remove it first with
+> `conda env remove -n cafe -y`, then recreate it.
+
+### pipx (global `cafe` command)
+
+pipx installs CAFE as a global command, but it uses **your own** Python — so you
+need **Python 3.12** available first.
+
+**1. Get Python 3.12.** The easiest option is [uv](https://docs.astral.sh/uv/),
+a single download that also fetches the right Python:
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+Or install Python 3.12 directly from [python.org](https://www.python.org/downloads/).
+
+**2. Install pipx** (skip this if you're using uv):
+```bash
+# macOS / Linux
+python3 -m pip install --user pipx && python3 -m pipx ensurepath
+# Windows (PowerShell)
+py -m pip install --user pipx && py -m pipx ensurepath
+```
+Reopen your terminal afterwards so the `cafe` command is found.
+
+**3. Install CAFE from GitHub.** CAFE is **not published on PyPI**, so you
+install it straight from the repository:
+```bash
+pipx install "git+https://github.com/mhbsiam/cafe"
+# uv: uv tool install "git+https://github.com/mhbsiam/cafe"
+```
+Update later by reinstalling from the same URL:
+```bash
+pipx install --force "git+https://github.com/mhbsiam/cafe"
+```
+The installed package is named `cafe-app`; remove it with `pipx uninstall cafe-app`.
+
 ##
 
 ## Run CAFE
@@ -94,18 +129,24 @@ If you installed with **pipx** (or uv), just open a terminal anywhere and run:
 cafe
 ```
 
-If you installed with **Pixi**:
+If you installed with **Pixi**, run it from the CAFE folder:
 
-```python
-
-# Open terminal app (or Windows Powershell)
-
-# Navigate to the directory where your CAFE tool’s file (pixi.toml) is present.
+```bash
+# Navigate to the directory containing pixi.toml
 cd ./path/to/cafe
 
 # Run the tool with pixi
 pixi run cafe
+```
 
+If you installed with **Conda**, activate the environment and run the script:
+
+```bash
+# Navigate to the directory containing cafe.py
+cd ./path/to/cafe
+
+conda activate cafe
+python cafe.py
 ```
 ##
 ## Workflow
