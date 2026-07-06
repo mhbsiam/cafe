@@ -2,7 +2,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![bioRxiv](https://img.shields.io/badge/bioRxiv-https://doi.org/10.1101/2024.12.03.626714-red)
 
-![Logo](CAFE/bin/img/logo.png)
+![Logo](CAFE/src/cafe_app/img/logo.png)
 
 # CAFE (Cell Analyzer for Flow Experiment)
 
@@ -23,7 +23,7 @@ Click [here](https://mhbsiam.github.io/cafe) to access the guide for installatio
 
 ## CAFE Interface
 
-![Logo](CAFE/bin/img/CAFE_interface.jpg)
+![Logo](CAFE/src/cafe_app/img/CAFE_interface.jpg)
 
 ##
 ## How to Download CAFE
@@ -42,12 +42,37 @@ Click [here](https://mhbsiam.github.io/cafe) to access the guide for installatio
 ##
 ## Quick Installation
 
+### Easiest: pipx (gives you a global `cafe` command)
+
+If you have **Python 3.12** and **[pipx](https://pipx.pypa.io/)** installed, you
+can install CAFE once and then run it from any folder by typing `cafe`:
+
+```bash
+# Install pipx once (macOS/Linux)
+python3 -m pip install --user pipx && python3 -m pipx ensurepath
+# then reopen your terminal
+
+# Install CAFE straight from GitHub
+pipx install "git+https://github.com/mhbsiam/cafe"
+```
+
+Then, from anywhere:
+
+```bash
+cafe
+```
+
+> No Python yet? Install [uv](https://docs.astral.sh/uv/) (a single download that
+> also fetches the right Python) and use `uv tool install "git+https://github.com/mhbsiam/cafe"`.
+
+Update later with `pipx reinstall cafe-app`; remove with `pipx uninstall cafe-app`.
+
 ### Using Pixi Package Manager
 
 **For Mac/Linux**  
 Run the following command to install Pixi for Mac/Linux:
 ```bash
-curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.34.0 bash
+curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.72.0 bash
 ```
 **For Windows**,  
 (1) first run the following code:
@@ -56,12 +81,20 @@ iwr -useb https://pixi.sh/install.ps1 | iex
 ```
 (2) Then run the code below to restore Pixi to a specific version:
 ```bash
-pixi self-update --version 0.34.0
+pixi self-update --version 0.72.0
 ```
 
 ##
 
 ## Run CAFE
+
+If you installed with **pipx** (or uv), just open a terminal anywhere and run:
+
+```bash
+cafe
+```
+
+If you installed with **Pixi**:
 
 ```python
 
@@ -77,7 +110,7 @@ pixi run cafe
 ##
 ## Workflow
 
-![Logo](CAFE/bin/img/workflow.png)
+![Logo](CAFE/src/cafe_app/img/workflow.png)
 
 ## Known Issues
 

@@ -1,6 +1,6 @@
-[project]
+[workspace]
 name = "cafe-app"
-version = "1.0.0"
+version = "3.0.0"
 description = "Spectral FlowCytometry visualization and analysis tool"
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
@@ -8,16 +8,20 @@ platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 [tasks]
 cafe = "python cafe.py"
 web = "python web.py"
+test = "pytest tests/ -v"
 
 [dependencies]
 python = "==3.12.5"
 pip = "*"
+packaging = "<25"
+pytest = ">=8.0"
 
 [pypi-dependencies]
 # Core numerical and data processing
 numpy = "==1.26.4"
 pandas = "==2.2.3"
 scipy = "==1.14.1"
+statsmodels = "==0.14.4"
 pyarrow = "==18.0.0"
 scanpy = "==1.10.4"
 cliffs-delta = "==1.0.0"
@@ -25,7 +29,7 @@ matplotlib = "==3.9.2"
 seaborn = "==0.13.2"
 plotly = "==5.24.1"
 cmasher = "==1.9.0"
-igraph = "==0.10.8"
-streamlit = "==1.41.0"
+igraph = ">=0.11,<1.0"
+streamlit = "==1.58.0"
 watchdog = "==6.0.0"
 kaleido = "==0.2.1"

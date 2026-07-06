@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cafe-app"
+version = "3.0.0"
+description = "CAFE — no-code Spectral Flow Cytometry visualization and analysis tool"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Hasanul Banna Siam" }]
+
+# Kept in sync with CAFE/pixi.toml [pypi-dependencies].
+dependencies = [
+    "numpy==1.26.4",
+    "pandas==2.2.3",
+    "scipy==1.14.1",
+    "statsmodels==0.14.4",
+    "pyarrow==18.0.0",
+    "scanpy==1.10.4",
+    "cliffs-delta==1.0.0",
+    "matplotlib==3.9.2",
+    "seaborn==0.13.2",
+    "plotly==5.24.1",
+    "cmasher==1.9.0",
+    "igraph>=0.11,<1.0",
+    "streamlit==1.58.0",
+    "watchdog==6.0.0",
+    "kaleido==0.2.1",
+    "packaging<25",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://mhbsiam.github.io/cafe"
+Repository = "https://github.com/mhbsiam/cafe"
+
+[project.scripts]
+cafe = "cafe_app.launcher:main"
+cafe-web = "cafe_app.launcher:main_web"
+cafe-hpc = "cafe_app.hpc:main"
+
+[tool.setuptools.packages.find]
+# The package lives under CAFE/src so it does not collide with the Astro docs
+# site at the repo-root src/.
+where = ["CAFE/src"]
+
+[tool.setuptools.package-data]
+cafe_app = ["img/*.png", "img/*.jpg"]

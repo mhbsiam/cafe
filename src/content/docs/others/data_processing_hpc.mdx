@@ -3,14 +3,14 @@ title: Data Processing with HPC
 description: Data processing with HPC for CAFE.
 ---
 
-This is optional. If you have access to a High-Performance Computing system, you can process your data in HPC using the provided cafe_hpc.py script to make an AnnData Object. You can also test multiple Leiden resolution values to determine which fits the dataset best. This is particularly useful if you have a large dataset.
+This is optional. If you have access to a High-Performance Computing system, you can process your data in HPC using the provided HPC pipeline to make an AnnData Object. You can also test multiple Leiden resolution values to determine which fits the dataset best. This is particularly useful if you have a large dataset.
 
 ### Steps:
 
-- Download the standalone script found in CAFE/cafe_hpc.py
+- Install CAFE (see the [pipx Way](/cafe/installation/pipx_way/)); this provides the `cafe-hpc` command
 - Assign input and output directory
 - Assign parameters. Note that some arguments accept multi-parameters such as Leiden resolution
-- Run the app
+- Run the pipeline
 
 ### 1. Choose the Parameters
 Decide on the arguments to pass to the script:
@@ -23,10 +23,10 @@ Decide on the arguments to pass to the script:
 - **`--distance`**: Distance metric to use for neighbors computation (default: `euclidean`).
 - **`--min_dist`**: `min_dist` parameter for UMAP (default: `0.1`).
 
-### 2. Run the Script
-Run the script in your terminal using the following command. For example:
+### 2. Run the Pipeline
+Run it in your terminal using the `cafe-hpc` command. For example:
 ```bash
-python3 cafe_hpc.py \
+cafe-hpc \
   --input /path/to/input_dir \
   --output /path/to/output_dir \
   --pca auto \
@@ -36,3 +36,6 @@ python3 cafe_hpc.py \
   --distance euclidean \
   --min_dist 0.1
 ```
+
+If you are running from a source checkout instead of an install, the equivalent
+is `python3 CAFE/src/cafe_app/hpc.py ...`.

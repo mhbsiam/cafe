@@ -19,6 +19,7 @@ export default defineConfig({
           href: "https://github.com/mhbsiam/cafe",
         },
       ],
+      customCss: ["./src/styles/custom.css"],
       sidebar: [
         {
           label: "Getting Started",
@@ -31,7 +32,11 @@ export default defineConfig({
             "installation/download",
             {
               label: "Installation",
-              items: ["installation/pixi_way", "installation/conda_way"],
+              items: [
+                "installation/pipx_way",
+                "installation/pixi_way",
+                "installation/conda_way",
+              ],
             },
             "installation/run_cafe",
           ],
