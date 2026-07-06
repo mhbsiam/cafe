@@ -1,51 +1,152 @@
 @import url("https://fonts.bunny.net/css?family=source-sans-3:400,600,700&display=swap");
 
-/* CAFE Docs — Starlight theme overrides to match the app design system. */
+/*
+ * CAFE Docs — Starlight theme.
+ *
+ * Starlight uses SEMANTIC color tokens, not literal ones:
+ *   --sl-color-white  = the foreground / high-contrast color
+ *                       (dark ink in light mode, near-white in dark mode)
+ *   --sl-color-black  = the page background color
+ *                       (white in light mode, near-black in dark mode)
+ *   --sl-color-gray-1 … gray-7 = a ramp from foreground (1) toward background (7)
+ *
+ * We only override the primitives (white / black / gray / accent) and let
+ * Starlight derive the rest (text, bg, hairlines, …). The brand hue is a
+ * teal-slate (~198deg) so the neutral ramp stays on-brand instead of flat gray.
+ */
 
+/* ---------------------------------------------------------------- Light -- */
 :root {
   --sl-font: "Source Sans 3", "Source Sans Pro", sans-serif;
-  --sl-color-white: #ffffff;
-  --sl-color-black: #1a262a;
+
+  /* Foreground → background ramp */
+  --sl-color-white: #16242b; /* headings / high-contrast text */
+  --sl-color-gray-1: #223338;
+  --sl-color-gray-2: #33454b; /* body text + hero tagline */
+  --sl-color-gray-3: #57696f; /* muted / secondary text */
+  --sl-color-gray-4: #8598a0; /* decorative icons */
+  --sl-color-gray-5: #b6c4c9; /* strong borders */
+  --sl-color-gray-6: #dde5e8; /* hairlines, nav/sidebar bg */
+  --sl-color-gray-7: #f0f4f6; /* subtle raised surfaces (cards) */
+  --sl-color-black: #ffffff; /* page background */
+
+  /* Brand accent — CAFE teal */
+  --sl-color-accent-low: #dbeaf1;
   --sl-color-accent: #0f5070;
   --sl-color-accent-high: #0a3d57;
-  --sl-color-accent-low: #e6f1f4;
-  --sl-color-gray-1: #ffffff;
-  --sl-color-gray-2: #f8f9fa;
-  --sl-color-gray-3: #e9ecef;
-  --sl-color-gray-4: #d5e0e4;
-  --sl-color-gray-5: #8fa3aa;
-  --sl-color-gray-6: #5c6e74;
-  --sl-color-gray-7: #1a262a;
-  --sl-color-text: #1a262a;
-  --sl-color-text-accent: #0f5070;
-  --sl-color-bg: #ffffff;
-  --sl-color-bg-nav: #f8f9fa;
-  --sl-color-bg-sidebar: #f8f9fa;
-  --sl-color-bg-inline-code: #f8f9fa;
-  --sl-color-bg-accent: #e6f1f4;
-  --sl-color-hairline: #d5e0e4;
-  --sl-color-hairline-shade: #e9ecef;
+
+  --cafe-on-accent: #ffffff; /* text on a filled accent button */
 }
 
+/* ----------------------------------------------------------------- Dark -- */
 [data-theme="dark"] {
-  /* Starlight dark mode is not the primary experience, but keep it readable. */
-  --sl-color-accent: #6ba4b8;
-  --sl-color-accent-high: #8fc4d4;
-  --sl-color-accent-low: #0f5070;
-  --sl-color-text: #f0f5f7;
-  --sl-color-text-accent: #6ba4b8;
-  --sl-color-bg: #1a262a;
-  --sl-color-bg-nav: #0f1a1d;
-  --sl-color-bg-sidebar: #0f1a1d;
-  --sl-color-bg-inline-code: #0f1a1d;
-  --sl-color-bg-accent: #0f5070;
-  --sl-color-hairline: #3d565e;
-  --sl-color-hairline-shade: #2d4147;
-  --sl-color-gray-1: #1a262a;
-  --sl-color-gray-2: #24363b;
-  --sl-color-gray-3: #2d4147;
-  --sl-color-gray-4: #3d565e;
-  --sl-color-gray-5: #6b8a92;
-  --sl-color-gray-6: #9bb4ba;
-  --sl-color-gray-7: #f0f5f7;
+  --sl-color-white: #f2f7f8; /* headings / high-contrast text */
+  --sl-color-gray-1: #e2eaed;
+  --sl-color-gray-2: #c2d0d5; /* body text + hero tagline */
+  --sl-color-gray-3: #9db0b6; /* muted / secondary text */
+  --sl-color-gray-4: #6c8188; /* decorative icons */
+  --sl-color-gray-5: #45575d; /* strong borders */
+  --sl-color-gray-6: #2b3a40; /* hairlines, nav/sidebar bg */
+  --sl-color-gray-7: #222f34; /* subtle raised surfaces (cards) */
+  --sl-color-black: #131e22; /* page background */
+
+  --sl-color-accent-low: #123a4d;
+  --sl-color-accent: #5aa7c4;
+  --sl-color-accent-high: #9fd0e0;
+
+  --cafe-on-accent: #071f29; /* dark ink on the brighter dark-mode teal */
+}
+
+/* ============================================================ Hero ==== */
+
+/* Soft brand glow behind the splash hero instead of a flat dark slab. */
+[data-has-hero] .hero {
+  position: relative;
+  padding-block: clamp(2rem, 6vw, 4rem);
+}
+
+[data-has-hero] .hero::before {
+  content: "";
+  position: absolute;
+  inset: -15% -25% auto -25%;
+  height: 150%;
+  background:
+    radial-gradient(
+      55% 60% at 72% 22%,
+      color-mix(in oklab, var(--sl-color-accent) 26%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      45% 55% at 12% 85%,
+      color-mix(in oklab, var(--sl-color-accent) 12%, transparent),
+      transparent 70%
+    );
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Frame the logo as an intentional brand plate rather than a raw white box. */
+.hero > img,
+.hero > .hero-html > img {
+  max-width: min(100%, 30rem);
+  height: auto;
+  padding: 1.1rem 1.4rem;
+  background: #ffffff;
+  border-radius: 1rem;
+  border: 1px solid var(--sl-color-hairline);
+  box-shadow:
+    0 18px 44px -22px rgba(6, 24, 30, 0.6),
+    0 2px 8px -4px rgba(6, 24, 30, 0.35);
+}
+
+/* Hero title: tighten tracking, keep it crisp. */
+.hero h1 {
+  letter-spacing: -0.02em;
+}
+
+/* Primary CTA — solid brand fill with reliable text contrast in both themes. */
+.hero .actions a.action.primary {
+  background: var(--sl-color-accent);
+  border-color: transparent;
+  color: var(--cafe-on-accent);
+  box-shadow: 0 10px 24px -12px color-mix(in oklab, var(--sl-color-accent) 70%, transparent);
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.hero .actions a.action.primary:hover {
+  background: var(--sl-color-accent-high);
+  color: var(--cafe-on-accent);
+  transform: translateY(-1px);
+}
+
+/* Minimal ("Read the Paper") action — quiet but clearly interactive. */
+.hero .actions a.action.minimal {
+  color: var(--sl-color-white);
+}
+.hero .actions a.action.minimal:hover {
+  color: var(--sl-color-text-accent);
+}
+
+/* ========================================================= Cards ===== */
+
+/*
+ * Starlight rotates card icon accents through purple/orange/green/red/blue.
+ * For a single-accent scientific brand that reads as random noise, so we
+ * pin every card to the CAFE teal and lift cards off the page background.
+ */
+.card {
+  --sl-card-border: var(--sl-color-accent) !important;
+  --sl-card-bg: var(--sl-color-accent-low) !important;
+  background-color: var(--sl-color-gray-7);
+  border-color: var(--sl-color-hairline);
+}
+
+[data-theme="dark"] .card .icon {
+  color: var(--sl-color-accent-high);
+}
+:root:not([data-theme="dark"]) .card .icon {
+  color: var(--sl-color-accent);
 }
