@@ -17,13 +17,8 @@ jobs:
       - name: Checkout your repository
         uses: actions/checkout@v4
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Install, build, and upload
         uses: withastro/action@v3
-        with:
-          package-manager: pnpm
 
   deploy:
     needs: build
