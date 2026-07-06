@@ -85,20 +85,14 @@ conda activate cafe
 
 ### pipx (global `cafe` command)
 
-pipx installs CAFE as a global command, but it uses **your own** Python — so you
-need **Python 3.12** available first.
+This route gives you a global `cafe` command you can run from any folder. It
+uses your own Python, so it assumes you **already have Python 3.12** installed.
 
-**1. Get Python 3.12.** The easiest option is [uv](https://docs.astral.sh/uv/),
-a single download that also fetches the right Python:
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-Or install Python 3.12 directly from [python.org](https://www.python.org/downloads/).
+> Don't have Python 3.12? Use the **Pixi** or **Conda** route above instead —
+> they install the right Python for you automatically. This pipx route is the
+> convenience option for people who already have Python.
 
-**2. Install pipx** (skip this if you're using uv):
+**1. Install pipx:**
 ```bash
 # macOS / Linux
 python3 -m pip install --user pipx && python3 -m pipx ensurepath
@@ -107,23 +101,23 @@ py -m pip install --user pipx && py -m pipx ensurepath
 ```
 Reopen your terminal afterwards so the `cafe` command is found.
 
-**3. Install CAFE from GitHub.** CAFE is **not published on PyPI**, so you
-install it straight from the repository:
+**2. Install CAFE from GitHub** (CAFE is **not published on PyPI**, so you
+install it straight from the repository):
 ```bash
 pipx install "git+https://github.com/mhbsiam/cafe"
-# uv: uv tool install "git+https://github.com/mhbsiam/cafe"
 ```
-Update later by reinstalling from the same URL:
+
+You can now run `cafe` from any terminal. To update to the latest version later:
 ```bash
 pipx install --force "git+https://github.com/mhbsiam/cafe"
 ```
-The installed package is named `cafe-app`; remove it with `pipx uninstall cafe-app`.
+To remove it: `pipx uninstall cafe-app` (the installed package is named `cafe-app`).
 
 ##
 
 ## Run CAFE
 
-If you installed with **pipx** (or uv), just open a terminal anywhere and run:
+If you installed with **pipx**, just open a terminal anywhere and run:
 
 ```bash
 cafe

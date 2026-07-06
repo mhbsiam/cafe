@@ -1,6 +1,6 @@
 ---
 title: pipx Way (global command)
-description: Install CAFE as a global "cafe" command with pipx or uv.
+description: Install CAFE as a global "cafe" command with pipx.
 sidebar:
     order: 2
     label: pipx Way
@@ -30,23 +30,8 @@ Python for you automatically.
 
 ## 1. Install Python 3.12
 
-The easiest option is **[uv](https://docs.astral.sh/uv/)**, a single download
-that also fetches the correct Python for you:
-
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-If you use uv, you can skip pipx entirely and use `uv tool install` in place of
-`pipx install` in the commands below.
-
-Alternatively, install **Python 3.12** directly from
-[python.org](https://www.python.org/downloads/) (or your package manager) and
-continue with pipx.
+CAFE needs **Python 3.12**. If you don't already have it, install it from
+[python.org](https://www.python.org/downloads/) (or your system package manager).
 
 ## 2. Install pipx
 
@@ -70,7 +55,6 @@ GitHub repository:
 
 ```bash
 pipx install "git+https://github.com/mhbsiam/cafe"
-# uv: uv tool install "git+https://github.com/mhbsiam/cafe"
 ```
 
 Then launch it from any directory:
@@ -83,14 +67,12 @@ To update later, reinstall from the same URL to pull the newest version:
 
 ```bash
 pipx install --force "git+https://github.com/mhbsiam/cafe"
-# uv: uv tool install --force "git+https://github.com/mhbsiam/cafe"
 ```
 
 The installed package is named `cafe-app`. To remove it:
 
 ```bash
 pipx uninstall cafe-app
-# uv: uv tool uninstall cafe-app
 ```
 
 ## Install from a local wheel
