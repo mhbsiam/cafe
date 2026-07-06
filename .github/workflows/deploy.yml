@@ -19,13 +19,11 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 8.6.0
 
       - name: Install, build, and upload
         uses: withastro/action@v3
         with:
-          package-manager: pnpm@8.6.0
+          package-manager: pnpm@10.32.1
 
   deploy:
     needs: build
