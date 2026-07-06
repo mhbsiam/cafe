@@ -20,16 +20,44 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+.env.local
 
-# macOS-specific files
+# streamlit secrets (config.toml stays tracked)
+.streamlit/secrets.toml
+
+# OS-specific files
 .DS_Store
+Thumbs.db
+ehthumbs.db
 
 # python cache
 __pycache__/
 *.py[cod]
 *.so
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# python coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# python virtual environments
+.venv/
+venv/
+env/
+
+# pixi environment
+.pixi/
+
+# vite cache (astro docs)
+.vite/
 
 # IDE / AI harness configs
 .claude/
 .codeium/
 .agents/
+.idea/

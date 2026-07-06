@@ -1,9 +1,25 @@
 version: 7
 platforms:
 - name: linux-64
+  virtual-packages:
+  - __unix=0=0
+  - __linux=4.18
+  - __glibc=2.28
+  - __archspec=0=x86_64
 - name: osx-64
+  virtual-packages:
+  - __unix=0=0
+  - __osx=13.0
+  - __archspec=0=x86_64
 - name: osx-arm64
+  virtual-packages:
+  - __unix=0=0
+  - __osx=13.0
+  - __archspec=0=m1
 - name: win-64
+  virtual-packages:
+  - __win=10.0
+  - __archspec=0=x86_64
 environments:
   default:
     channels:
@@ -103,9 +119,9 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/ae/b3/a0f0f4faac229b0011d8c4a7ee6da7c2dca0b6fd08039c95920846f23ca4/kaleido-0.2.1-py2.py3-none-manylinux1_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b0/7b/90df4a0a816d98d6ea26f559d87836d494a2cf1fcf063be67df50a7bcc30/anyio-4.14.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b2/e6/94145d714402fd5ade00b5661f2d0ab981219e07f7db9bfa16786cdb9c04/pynndescent-0.6.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/b3/70/c488485bcb439b9ccf0bc117bd9c8634bc36f66fa8fda2fc01fb406542e7/igraph-0.10.8-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b5/e8/dbf020b4d98251a9860752a094d09a65e1b436ad181faf929983f697048f/watchdog-6.0.0-py3-none-manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/b8/79/a21fec50837ee429fd0cb675b93cd7db80f687a9eeab53f63ea02f0a5a99/igraph-0.11.9-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/c1/d4/59e74daffcb57a07668852eeeb6035af9f32cbfd7a1d2511f17d2fe6a738/smmap-5.0.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/c4/13/680c54afe3e65767bed7ec1a15571e1a2f1257128733851ade24abcefbcc/kiwisolver-1.5.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/c5/c4/f6b7c0ec5241a2bde90c7ba1eca6ba44f8488bcedafe9072c79593015ec0/session_info-1.0.1-py3-none-any.whl
@@ -213,6 +229,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/a0/61/5c78b91c3143ed5c14207f463aecfc8f9dbb5092fb2869baf37c273b2705/gitdb-4.0.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/aa/f3/0b6ced594e51cc95d8c1fc1640d3623770d01e4969d29c0bd09945fafefa/altair-5.5.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/ab/84/bbcde5833e2685b722ce04ed2ec542cff49f12b4d6a3aa27d23c4febd4db/igraph-0.11.9-cp39-abi3-macosx_10_9_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ab/a1/318b9aeca7b9856410ededa4f52d6f82174d1a41e64bdd70d951e532675a/colorspacious-1.1.2-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ac/20/75f915ff375d6249e6550ac740fdbbd66159a068fd3af1400ff62036b07a/scikit_learn-1.9.0-cp312-cp312-macosx_10_13_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b0/7b/90df4a0a816d98d6ea26f559d87836d494a2cf1fcf063be67df50a7bcc30/anyio-4.14.1-py3-none-any.whl
@@ -231,7 +248,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d1/b4/c408bac643afd670d2009219dbbb2076290e23fb1986937825c9a0d839c5/scanpy-1.10.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d8/8e/bb97bb0c71802080bfc8952937d174e49cfc50de5c951dd47b2496f0dcdb/tqdm-4.68.3-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/dc/7c/7d7f008f04d1d1d75a5e5e5ad92b26748ffe3efd68385dd5719f3b4c1668/igraph-0.10.8-cp39-abi3-macosx_10_9_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/df/84/14c36a92fb24f8e1cea452f53b0744b5da69d52cdd2fe22e71e6fbf765d5/streamlit-1.58.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e0/f7/0ccaa596ec341963adbb4f839774c36d5659e75a0812d946732b927d480e/kaleido-0.2.1-py2.py3-none-macosx_10_11_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl
@@ -285,6 +301,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/0c/eb/4fc8d0a7110eb5fc9cc161723a34a8a6c200ce3b4fbf681bc86feee22308/charset_normalizer-3.4.7-cp312-cp312-macosx_10_13_universal2.whl
       - pypi: https://files.pythonhosted.org/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/10/cb/f2ad4230dc2eb1a74edf38f1a38b9b52277f75bef262d8908e60d957e13c/blinker-1.9.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/15/47/6e94649b7fe12f3a82e75ef0f35fb0a2d860b13aafcfcfcdf467d50e9208/igraph-0.11.9-cp39-abi3-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/1b/98/f63318ccbe75c810011fe9233884c5d348d94d90005de1b79e5f93bef9c0/umap_learn-0.5.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/7a/1c6e3562dfd8950adbb11ffbc65d21e7c89d01a6e4f137fa981056de25c5/gitpython-3.1.50-py3-none-any.whl
@@ -293,7 +310,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/2c/58/ca301544e1fa93ed4f80d724bf5b194f6e4b945841c5bfd555878eea9fcb/referencing-0.37.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/32/d5/f9a850d79b0851d1d4ef6456097579a9005b31fea68726a4ae5f2d82ddd9/threadpoolctl-3.6.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/35/3e/5713b84a02b24b2a4bd4d6673bfc03017e6654e1d8793ece783b7ed4d484/matplotlib-3.9.2-cp312-cp312-macosx_11_0_arm64.whl
-      - pypi: https://files.pythonhosted.org/packages/38/d8/0abcc30c61d60fdd460677b3ca1d6ac16f4a657d50eea8f461da76396e27/igraph-0.10.8-cp39-abi3-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/3b/3d/2970b27a11ae17fb2d353e7a179763a2fe6f37d6d2a9f4d40104a2f132e9/stdlib_list-0.12.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/40/1e/9771421ac2286eaab95b8575b0cb701ae3663abf8b5e1f64f1fd90d0a673/websockets-16.0-cp312-cp312-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl
@@ -404,6 +420,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/19/e8/6026ed58a64563186a9ee3f29f41261fd1828f527dd93d33b60feca63352/contourpy-1.3.3-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/1b/98/f63318ccbe75c810011fe9233884c5d348d94d90005de1b79e5f93bef9c0/umap_learn-0.5.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/1c/20/2fdec87fc7f8cec950d2b0bea603c12dc9f05b4966dc5924ba5a36a61bf6/numcodecs-0.16.5-cp312-cp312-win_amd64.whl
+      - pypi: https://files.pythonhosted.org/packages/1c/36/8de9605ba946f9ce82558e753ab08c4705124a92df561df83ac551c6e36a/igraph-0.11.9-cp39-abi3-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/1c/66/2dc736a4d576847134fb6d80bd995c569b13cdc7b815d669050bf0ce2d2c/protobuf-5.29.6-cp310-abi3-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/20/7a/1c6e3562dfd8950adbb11ffbc65d21e7c89d01a6e4f137fa981056de25c5/gitpython-3.1.50-py3-none-any.whl
@@ -440,7 +457,6 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a0/61/5c78b91c3143ed5c14207f463aecfc8f9dbb5092fb2869baf37c273b2705/gitdb-4.0.12-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a1/ae/15db01b0343fa0833e0994bd4aa70ccb88cfb1c045f1cbfb0938fa81ef27/igraph-0.10.8-cp39-abi3-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/aa/5b/bec5aa9bbbb2c946ca2733ef9c4ca91c91b6a24580193e891b5f7dbe8e1e/markupsafe-3.0.3-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/aa/7d/43ab67228ef98c6b5dd42ab386eae2d7877036970a0d7e3dd3eb47a0d530/scipy-1.14.1-cp312-cp312-win_amd64.whl
       - pypi: https://files.pythonhosted.org/packages/aa/f3/0b6ced594e51cc95d8c1fc1640d3623770d01e4969d29c0bd09945fafefa/altair-5.5.0-py3-none-any.whl
@@ -1853,6 +1869,39 @@ packages:
   version: 0.8.0
   sha256: 880490234c10f70a9830743097e8958d6e4b9f5a0ffc24515023afeef984054d
   requires_python: '>=3.9'
+- pypi: https://files.pythonhosted.org/packages/15/47/6e94649b7fe12f3a82e75ef0f35fb0a2d860b13aafcfcfcdf467d50e9208/igraph-0.11.9-cp39-abi3-macosx_11_0_arm64.whl
+  name: igraph
+  version: 0.11.9
+  sha256: 4b3224b2b74e9dfac1271dc6f2e1061d13492f91198d05e1b8b696b994e5e269
+  requires_dist:
+  - texttable>=1.6.2
+  - cairocffi>=1.2.0 ; extra == 'cairo'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
+  - plotly>=5.3.0 ; extra == 'plotly'
+  - cairocffi>=1.2.0 ; extra == 'plotting'
+  - cairocffi>=1.2.0 ; extra == 'test'
+  - networkx>=2.5 ; extra == 'test'
+  - pytest>=7.0.1 ; extra == 'test'
+  - pytest-timeout>=2.1.0 ; extra == 'test'
+  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - plotly>=5.3.0 ; extra == 'test'
+  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - cairocffi>=1.2.0 ; extra == 'test-win-arm64'
+  - networkx>=2.5 ; extra == 'test-win-arm64'
+  - pytest>=7.0.1 ; extra == 'test-win-arm64'
+  - pytest-timeout>=2.1.0 ; extra == 'test-win-arm64'
+  - cairocffi>=1.2.0 ; extra == 'test-musl'
+  - networkx>=2.5 ; extra == 'test-musl'
+  - pytest>=7.0.1 ; extra == 'test-musl'
+  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
+  - sphinx>=7.0.0 ; extra == 'doc'
+  - sphinx-rtd-theme>=1.3.0 ; extra == 'doc'
+  - sphinx-gallery>=0.14.0 ; extra == 'doc'
+  - pydoctor>=23.4.0 ; extra == 'doc'
+  requires_python: '>=3.9'
 - pypi: https://files.pythonhosted.org/packages/16/2e/86f24451c2d530c88daf997cb8d6ac622c1d40d19f5a031ed68a4b73a374/numpy-1.26.4-cp312-cp312-win_amd64.whl
   name: numpy
   version: 1.26.4
@@ -2031,6 +2080,39 @@ packages:
   - importlib-metadata ; extra == 'test-extras'
   - crc32c ; extra == 'test-extras'
   requires_python: '>=3.11'
+- pypi: https://files.pythonhosted.org/packages/1c/36/8de9605ba946f9ce82558e753ab08c4705124a92df561df83ac551c6e36a/igraph-0.11.9-cp39-abi3-win_amd64.whl
+  name: igraph
+  version: 0.11.9
+  sha256: 09c7d49c7759e058bf2526bbac54dd1f9e0725ff64352f01545db59c09de88cf
+  requires_dist:
+  - texttable>=1.6.2
+  - cairocffi>=1.2.0 ; extra == 'cairo'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
+  - plotly>=5.3.0 ; extra == 'plotly'
+  - cairocffi>=1.2.0 ; extra == 'plotting'
+  - cairocffi>=1.2.0 ; extra == 'test'
+  - networkx>=2.5 ; extra == 'test'
+  - pytest>=7.0.1 ; extra == 'test'
+  - pytest-timeout>=2.1.0 ; extra == 'test'
+  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - plotly>=5.3.0 ; extra == 'test'
+  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - cairocffi>=1.2.0 ; extra == 'test-win-arm64'
+  - networkx>=2.5 ; extra == 'test-win-arm64'
+  - pytest>=7.0.1 ; extra == 'test-win-arm64'
+  - pytest-timeout>=2.1.0 ; extra == 'test-win-arm64'
+  - cairocffi>=1.2.0 ; extra == 'test-musl'
+  - networkx>=2.5 ; extra == 'test-musl'
+  - pytest>=7.0.1 ; extra == 'test-musl'
+  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
+  - sphinx>=7.0.0 ; extra == 'doc'
+  - sphinx-rtd-theme>=1.3.0 ; extra == 'doc'
+  - sphinx-gallery>=0.14.0 ; extra == 'doc'
+  - pydoctor>=23.4.0 ; extra == 'doc'
+  requires_python: '>=3.9'
 - pypi: https://files.pythonhosted.org/packages/1c/66/2dc736a4d576847134fb6d80bd995c569b13cdc7b815d669050bf0ce2d2c/protobuf-5.29.6-cp310-abi3-win_amd64.whl
   name: protobuf
   version: 5.29.6
@@ -2265,33 +2347,6 @@ packages:
   name: charset-normalizer
   version: 3.4.7
   sha256: 5ed6ab538499c8644b8a3e18debabcd7ce684f3fa91cf867521a7a0279cab2d6
-  requires_python: '>=3.7'
-- pypi: https://files.pythonhosted.org/packages/38/d8/0abcc30c61d60fdd460677b3ca1d6ac16f4a657d50eea8f461da76396e27/igraph-0.10.8-cp39-abi3-macosx_11_0_arm64.whl
-  name: igraph
-  version: 0.10.8
-  sha256: 42fb6b69de069d0dc66a8606ad486aae19b500b01268cb1e64877ea931bd7ad7
-  requires_dist:
-  - texttable>=1.6.2
-  - cairocffi>=1.2.0 ; extra == 'cairo'
-  - sphinx>=4.2.0 ; extra == 'doc'
-  - sphinxbootstrap4theme>=0.6.0 ; extra == 'doc'
-  - matplotlib>=3.5.0,<3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
-  - plotly>=5.3.0 ; extra == 'plotly'
-  - cairocffi>=1.2.0 ; extra == 'plotting'
-  - cairocffi>=1.2.0 ; extra == 'test'
-  - networkx>=2.5 ; extra == 'test'
-  - pytest>=7.0.1 ; extra == 'test'
-  - pytest-timeout>=2.1.0 ; extra == 'test'
-  - plotly>=5.3.0 ; extra == 'test'
-  - cairocffi>=1.2.0 ; extra == 'test-musl'
-  - networkx>=2.5 ; extra == 'test-musl'
-  - pytest>=7.0.1 ; extra == 'test-musl'
-  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
-  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - matplotlib>=3.6.0 ; python_full_version >= '3.8' and platform_python_implementation != 'PyPy' and extra == 'test'
   requires_python: '>=3.7'
 - pypi: https://files.pythonhosted.org/packages/38/f8/d8fddee9ed0d0c0f4a2132c1dfcf0e3e53265055da8df952a53e7eaf178c/pandas-2.2.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
   name: pandas
@@ -3358,33 +3413,6 @@ packages:
   - pysocks>=1.5.6,!=1.5.7 ; extra == 'socks'
   - chardet>=3.0.2,<8 ; extra == 'use-chardet-on-py3'
   requires_python: '>=3.10'
-- pypi: https://files.pythonhosted.org/packages/a1/ae/15db01b0343fa0833e0994bd4aa70ccb88cfb1c045f1cbfb0938fa81ef27/igraph-0.10.8-cp39-abi3-win_amd64.whl
-  name: igraph
-  version: 0.10.8
-  sha256: 88ee0d0ab83481f365ef4e56f9f9e9f70001d90ebd6ed98e368060494481d022
-  requires_dist:
-  - texttable>=1.6.2
-  - cairocffi>=1.2.0 ; extra == 'cairo'
-  - sphinx>=4.2.0 ; extra == 'doc'
-  - sphinxbootstrap4theme>=0.6.0 ; extra == 'doc'
-  - matplotlib>=3.5.0,<3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
-  - plotly>=5.3.0 ; extra == 'plotly'
-  - cairocffi>=1.2.0 ; extra == 'plotting'
-  - cairocffi>=1.2.0 ; extra == 'test'
-  - networkx>=2.5 ; extra == 'test'
-  - pytest>=7.0.1 ; extra == 'test'
-  - pytest-timeout>=2.1.0 ; extra == 'test'
-  - plotly>=5.3.0 ; extra == 'test'
-  - cairocffi>=1.2.0 ; extra == 'test-musl'
-  - networkx>=2.5 ; extra == 'test-musl'
-  - pytest>=7.0.1 ; extra == 'test-musl'
-  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
-  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - matplotlib>=3.6.0 ; python_full_version >= '3.8' and platform_python_implementation != 'PyPy' and extra == 'test'
-  requires_python: '>=3.7'
 - pypi: https://files.pythonhosted.org/packages/a4/73/319dfa745dd668efe89309141ded489126461fcecd2b8f3a3cda185129b6/rpds_py-2026.6.3-cp312-cp312-macosx_11_0_arm64.whl
   name: rpds-py
   version: 2026.6.3
@@ -3487,6 +3515,39 @@ packages:
   - sphinx-design ; extra == 'doc'
   - sphinxext-altair ; extra == 'doc'
   - vl-convert-python>=1.7.0 ; extra == 'save'
+  requires_python: '>=3.9'
+- pypi: https://files.pythonhosted.org/packages/ab/84/bbcde5833e2685b722ce04ed2ec542cff49f12b4d6a3aa27d23c4febd4db/igraph-0.11.9-cp39-abi3-macosx_10_9_x86_64.whl
+  name: igraph
+  version: 0.11.9
+  sha256: ef30a8eb6329a71211652223cad900dc42bc7fdb44d9e942e991181232906ac2
+  requires_dist:
+  - texttable>=1.6.2
+  - cairocffi>=1.2.0 ; extra == 'cairo'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
+  - plotly>=5.3.0 ; extra == 'plotly'
+  - cairocffi>=1.2.0 ; extra == 'plotting'
+  - cairocffi>=1.2.0 ; extra == 'test'
+  - networkx>=2.5 ; extra == 'test'
+  - pytest>=7.0.1 ; extra == 'test'
+  - pytest-timeout>=2.1.0 ; extra == 'test'
+  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - plotly>=5.3.0 ; extra == 'test'
+  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - cairocffi>=1.2.0 ; extra == 'test-win-arm64'
+  - networkx>=2.5 ; extra == 'test-win-arm64'
+  - pytest>=7.0.1 ; extra == 'test-win-arm64'
+  - pytest-timeout>=2.1.0 ; extra == 'test-win-arm64'
+  - cairocffi>=1.2.0 ; extra == 'test-musl'
+  - networkx>=2.5 ; extra == 'test-musl'
+  - pytest>=7.0.1 ; extra == 'test-musl'
+  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
+  - sphinx>=7.0.0 ; extra == 'doc'
+  - sphinx-rtd-theme>=1.3.0 ; extra == 'doc'
+  - sphinx-gallery>=0.14.0 ; extra == 'doc'
+  - pydoctor>=23.4.0 ; extra == 'doc'
   requires_python: '>=3.9'
 - pypi: https://files.pythonhosted.org/packages/ab/a1/318b9aeca7b9856410ededa4f52d6f82174d1a41e64bdd70d951e532675a/colorspacious-1.1.2-py2.py3-none-any.whl
   name: colorspacious
@@ -3602,33 +3663,6 @@ packages:
   - llvmlite>=0.38
   - joblib>=0.11
   - pytest ; extra == 'testing'
-- pypi: https://files.pythonhosted.org/packages/b3/70/c488485bcb439b9ccf0bc117bd9c8634bc36f66fa8fda2fc01fb406542e7/igraph-0.10.8-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-  name: igraph
-  version: 0.10.8
-  sha256: 89fca31ca33957dae5df4ecf032c08eb1e897cbc5856cdaad52b67c6ace3f074
-  requires_dist:
-  - texttable>=1.6.2
-  - cairocffi>=1.2.0 ; extra == 'cairo'
-  - sphinx>=4.2.0 ; extra == 'doc'
-  - sphinxbootstrap4theme>=0.6.0 ; extra == 'doc'
-  - matplotlib>=3.5.0,<3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
-  - plotly>=5.3.0 ; extra == 'plotly'
-  - cairocffi>=1.2.0 ; extra == 'plotting'
-  - cairocffi>=1.2.0 ; extra == 'test'
-  - networkx>=2.5 ; extra == 'test'
-  - pytest>=7.0.1 ; extra == 'test'
-  - pytest-timeout>=2.1.0 ; extra == 'test'
-  - plotly>=5.3.0 ; extra == 'test'
-  - cairocffi>=1.2.0 ; extra == 'test-musl'
-  - networkx>=2.5 ; extra == 'test-musl'
-  - pytest>=7.0.1 ; extra == 'test-musl'
-  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
-  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - matplotlib>=3.6.0 ; python_full_version >= '3.8' and platform_python_implementation != 'PyPy' and extra == 'test'
-  requires_python: '>=3.7'
 - pypi: https://files.pythonhosted.org/packages/b5/e8/dbf020b4d98251a9860752a094d09a65e1b436ad181faf929983f697048f/watchdog-6.0.0-py3-none-manylinux2014_x86_64.whl
   name: watchdog
   version: 6.0.0
@@ -3641,6 +3675,39 @@ packages:
   version: 1.17.0
   sha256: 4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
   requires_python: '>=2.7,!=3.0.*,!=3.1.*,!=3.2.*'
+- pypi: https://files.pythonhosted.org/packages/b8/79/a21fec50837ee429fd0cb675b93cd7db80f687a9eeab53f63ea02f0a5a99/igraph-0.11.9-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+  name: igraph
+  version: 0.11.9
+  sha256: 773201c9eafef668be11d8966cf2d7114d34757cd9cfdbd8c190fefcd341220b
+  requires_dist:
+  - texttable>=1.6.2
+  - cairocffi>=1.2.0 ; extra == 'cairo'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
+  - plotly>=5.3.0 ; extra == 'plotly'
+  - cairocffi>=1.2.0 ; extra == 'plotting'
+  - cairocffi>=1.2.0 ; extra == 'test'
+  - networkx>=2.5 ; extra == 'test'
+  - pytest>=7.0.1 ; extra == 'test'
+  - pytest-timeout>=2.1.0 ; extra == 'test'
+  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - matplotlib>=3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - plotly>=5.3.0 ; extra == 'test'
+  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
+  - cairocffi>=1.2.0 ; extra == 'test-win-arm64'
+  - networkx>=2.5 ; extra == 'test-win-arm64'
+  - pytest>=7.0.1 ; extra == 'test-win-arm64'
+  - pytest-timeout>=2.1.0 ; extra == 'test-win-arm64'
+  - cairocffi>=1.2.0 ; extra == 'test-musl'
+  - networkx>=2.5 ; extra == 'test-musl'
+  - pytest>=7.0.1 ; extra == 'test-musl'
+  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
+  - sphinx>=7.0.0 ; extra == 'doc'
+  - sphinx-rtd-theme>=1.3.0 ; extra == 'doc'
+  - sphinx-gallery>=0.14.0 ; extra == 'doc'
+  - pydoctor>=23.4.0 ; extra == 'doc'
+  requires_python: '>=3.9'
 - pypi: https://files.pythonhosted.org/packages/be/45/adfee365d9ea3d853550b2e735f9d66366701c65db7855cd07621732ccfc/contourpy-1.3.3-cp312-cp312-macosx_10_13_x86_64.whl
   name: contourpy
   version: 1.3.3
@@ -4054,33 +4121,6 @@ packages:
   requires_dist:
   - pyyaml>=3.10 ; extra == 'watchmedo'
   requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/dc/7c/7d7f008f04d1d1d75a5e5e5ad92b26748ffe3efd68385dd5719f3b4c1668/igraph-0.10.8-cp39-abi3-macosx_10_9_x86_64.whl
-  name: igraph
-  version: 0.10.8
-  sha256: 7ee4e9cb183a92524f336399b548d2540f5150ab7ce6a270618709efa9e04c58
-  requires_dist:
-  - texttable>=1.6.2
-  - cairocffi>=1.2.0 ; extra == 'cairo'
-  - sphinx>=4.2.0 ; extra == 'doc'
-  - sphinxbootstrap4theme>=0.6.0 ; extra == 'doc'
-  - matplotlib>=3.5.0,<3.6.0 ; platform_python_implementation != 'PyPy' and extra == 'matplotlib'
-  - plotly>=5.3.0 ; extra == 'plotly'
-  - cairocffi>=1.2.0 ; extra == 'plotting'
-  - cairocffi>=1.2.0 ; extra == 'test'
-  - networkx>=2.5 ; extra == 'test'
-  - pytest>=7.0.1 ; extra == 'test'
-  - pytest-timeout>=2.1.0 ; extra == 'test'
-  - plotly>=5.3.0 ; extra == 'test'
-  - cairocffi>=1.2.0 ; extra == 'test-musl'
-  - networkx>=2.5 ; extra == 'test-musl'
-  - pytest>=7.0.1 ; extra == 'test-musl'
-  - pytest-timeout>=2.1.0 ; extra == 'test-musl'
-  - numpy>=1.19.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pandas>=1.1.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - scipy>=1.5.0 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - pillow>=9 ; platform_python_implementation != 'PyPy' and extra == 'test'
-  - matplotlib>=3.6.0 ; python_full_version >= '3.8' and platform_python_implementation != 'PyPy' and extra == 'test'
-  requires_python: '>=3.7'
 - pypi: https://files.pythonhosted.org/packages/df/84/14c36a92fb24f8e1cea452f53b0744b5da69d52cdd2fe22e71e6fbf765d5/streamlit-1.58.0-py3-none-any.whl
   name: streamlit
   version: 1.58.0
