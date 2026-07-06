@@ -1,13 +1,13 @@
 ---
 title: CAFE
-description: Get started building your docs site with Starlight.
+description: Open-source, no-code spectral flow cytometry analysis for immunology researchers.
 template: splash
 hero:
-  tagline: The open-source, free, no-code, web-app for high-dimensional spectral flow cytometry data (SFCM) analysis.
+  tagline: Analyze spectral flow cytometry data and produce publication-ready figures without writing code.
   image:
     file: ../../assets/logo.png
   actions:
-    - text: Read the Docs
+    - text: Get Started
       link: /cafe/getting-started/introduction
       icon: right-arrow
     - text: Read the Paper
@@ -15,3 +15,22 @@ hero:
       icon: external
       variant: minimal
 ---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What CAFE does
+
+<CardGrid stagger>
+  <Card title="Upload CSVs" icon="upload">
+    Import scaled FlowJo exports with the standard SampleID_Group.csv naming convention.
+  </Card>
+  <Card title="Clean & Correct" icon="approve-check">
+    Run MAD-based QC, optional PCA, and ComBat batch correction in a guided pipeline.
+  </Card>
+  <Card title="Cluster & Explore" icon="open-book">
+    Compute UMAP + Leiden clusters, then pan, zoom, and select cells interactively.
+  </Card>
+  <Card title="Export Figures" icon="download">
+    Download 300 DPI PNG/PDF/SVG plots plus a ZIP of tables and the processed AnnData object.
+  </Card>
+</CardGrid>
