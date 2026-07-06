@@ -1,9 +1,5 @@
 # build output
 dist/
-
-# python build artifacts
-build/
-*.egg-info/
 # generated types
 .astro/
 
@@ -23,13 +19,3 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
-
-# python cache
-__pycache__/
-*.py[cod]
-*.so
-
-# IDE / AI harness configs
-.claude/
-.codeium/
-.agents/
