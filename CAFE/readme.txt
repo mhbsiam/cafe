@@ -1,5 +1,29 @@
 Installation:
 -----------------------------------------------
+Method 00: pipx way (easiest — gives you a global "cafe" command):
+
+Requires Python 3.12 and pipx (install pipx once with:
+	python3 -m pip install --user pipx && python3 -m pipx ensurepath
+then reopen your terminal).
+
+01. Install CAFE from GitHub:
+
+	pipx install "git+https://github.com/mhbsiam/cafe"
+
+	(Or from a local copy of this repo: pipx install .)
+
+02. Open a terminal anywhere and run:
+
+	cafe
+
+	The app opens in your browser automatically. Update later with
+	"pipx reinstall cafe-app"; remove with "pipx uninstall cafe-app".
+
+	Tip: no Python yet? Install uv (https://docs.astral.sh/uv/) and use
+	"uv tool install ..." in place of "pipx install ..." — uv fetches
+	the right Python for you.
+
+-----------------------------------------------
 Method 01: Pixi way:
 
 01.	Download the tool, open terminal, and Head over to the folder where you have the tool’s python file (i.e. cafe.py):
@@ -10,12 +34,12 @@ cd ./path/to/cafe
 
 For mac/linux:
 
-curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.34.0 bash
+curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.72.0 bash
 
 For windows:
 
 iwr -useb https://pixi.sh/install.ps1 | iex
-pixi self-update --version 0.34.0
+pixi self-update --version 0.72.0
 
 03.	Run cafe by typing:
 
