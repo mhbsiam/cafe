@@ -156,6 +156,10 @@ git clone https://github.com/mhbsiam/cafe.git
 [Here](https://learn.microsoft.com/en-us/windows/wsl/install) is a tutorial on how to install and activate WSL on a Windows computer.
 Finally, while reporting data generated using CAFE, mentioning the operating system used for data generation is highly recommended for replicability. 
 
+## Acknowledgement
+
+Original codes were refactored using Devin CLI and Claude Code. New design aesthetics were implemented following 'impeccable' design.
+
 ## Citation
 
 If you use CAFE in your research, please cite our paper:
