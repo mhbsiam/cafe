@@ -1,18 +1,20 @@
 ---
-title: Pixi Way (recommended)
+title: Pixi Way
 description: Install CAFE using Pixi.
 sidebar:
-    order: 0
+    order: 3
     label: Pixi Way
     badge:
-        text: Recommended
-        variant: success
+        text: Alternative
+        variant: note
 ---
 import {Aside} from '@astrojs/starlight/components';
 
-This is the most reliable way to set up CAFE. Pixi creates an isolated
-environment and installs the **correct Python (3.12)** and every dependency for
-you — so you don't need Python installed on your machine beforehand.
+This is an alternative to the [uv Way](/cafe/installation/uv_way/), for when you
+have downloaded the CAFE release and want to run it from that folder. Pixi
+creates an isolated environment and installs the **correct Python (3.12)** and
+every dependency for you — so you don't need Python installed on your machine
+beforehand.
 
 <Aside type='tip' title='No Python required'>
 You do **not** need to install Python 3.12 yourself for the Pixi (or Conda)
