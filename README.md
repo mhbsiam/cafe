@@ -12,7 +12,7 @@ Example data for testing available at FigShare:
 01. [Downsampled-CSV](https://figshare.com/articles/dataset/Downsampled_data_from_FlowRepository_FR-FCM-Z3WR/27940719)
 02. [Processed-H5AD](https://figshare.com/articles/dataset/Downsampled_data_from_FlowRepository_FR-FCM-Z3WR/27940752)
 
-**Update: CAFE is now accepted for publication in Bioinformatics**
+**Update: CAFE is now published in Bioinformatics**
 
 Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Satwik Acharyya, Mallikarjun Patil, Daniel J Tyrrell, CAFE: An Integrated Web App for High-Dimensional Analysis and Visualization in Spectral Flow Cytometry, Bioinformatics, 2025;, btaf176, https://doi.org/10.1093/bioinformatics/btaf176
 
@@ -26,32 +26,61 @@ Click [here](https://mhbsiam.github.io/cafe) to access the guide for installatio
 ![Logo](CAFE/src/cafe_app/img/CAFE_interface.jpg)
 
 ##
-## How to Download CAFE
 
-### Step 1: Download the tool as a ZIP file
+
+
+##
+## Quick Installation and Running CAFE
+### Recommended: Install using uv
+First, open your Terminal app on Mac/Linux, or Powershell on WIndows:
+
+**1. Install uv:** (skip this step if you already have uv installed)
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+Restart your terminal afterwards so that `uv` command is found.
+
+**2. Install CAFE directly from GitHub:** (install it directly from the repository):
+```bash
+uv tool install "git+https://github.com/mhbsiam/cafe"
+```
+
+**3. Run CAFE using uv:**
+Just open a terminal anywhere and run:
+
+```bash
+cafe
+```
+This should automatically open the CAFE tool in a web browser. The initial setup of the tool may take longer on your first use.
+
+**4. If a newer version exists, updating CAFE to a newer version:**
+```bash
+uv tool install --force "git+https://github.com/mhbsiam/cafe"
+```
+**5. To uninstall CAFE:**
+```bash
+uv tool uninstall cafe-app
+```
+
+##
+## Alternative Installation Processes:
+## Manually Download CAFE from GitHub
+
+### Download the tool as a ZIP file
 1. Click the [Releases](https://github.com/mhbsiam/cafe/releases) button on the right side of this page.
 2. Locate the latest release
 3. Select **CAFE_version.zip** file to download.
 
-### Step 2: Extract the ZIP File & Install the tool
+### Extract the ZIP File & Install the tool
 1. Extract the files
 2. Navigate to the " ./CAFE " folder path where you will find the following files: cafe.py, pixi.toml, cafe.yaml etc.
 3. Then, follow the instructions below to run the tool using Pixi or Conda.
-
-
-##
-## Quick Installation
-
-CAFE runs on **Python 3.12**. The **Pixi** and **Conda** routes install the
-correct Python for you automatically, so you don't need Python set up
-beforehand —> pick one of those if you're unsure. The **pipx** route uses your
-own Python.
-
-First download and extract the CAFE release (see
-[How to Download CAFE](#how-to-download-cafe)), then follow one of the methods
-below. See [Run CAFE](#run-cafe) to launch it afterwards.
-
-### Recommended: Pixi
+   
+## Install and run using Pixi
 
 Pixi creates an isolated environment with the right Python (3.12) and every
 dependency for you.
@@ -70,8 +99,17 @@ iwr -useb https://pixi.sh/install.ps1 | iex
 ```bash
 pixi self-update --version 0.72.0
 ```
+After installation using **Pixi**, run it from the CAFE folder:
 
-### Conda
+```bash
+# Navigate to the directory containing pixi.toml
+cd ./path/to/cafe
+
+# Run the tool with pixi
+pixi run cafe
+```
+
+## Or, Install using Conda
 
 Conda also builds an isolated environment with the correct Python (3.12) from
 `cafe.yaml`. From the extracted `./CAFE` folder (the one containing `cafe.yaml`):
@@ -83,57 +121,7 @@ conda activate cafe
 > Already have a `cafe` environment from an older version? Remove it first with
 > `conda env remove -n cafe -y`, then recreate it.
 
-### uv (global `cafe` command)
-
-This route gives you a global `cafe` command you can run from any folder. We use
-[uv](https://docs.astral.sh/uv/) here because it also installs the right
-**Python 3.12** for you, so it works even if you don't have Python installed.
-
-**1. Install uv:**
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-Reopen your terminal afterwards so the `uv` command is found.
-
-**2. Install CAFE from GitHub** (CAFE is **not published on PyPI**, so you
-install it straight from the repository):
-```bash
-uv tool install "git+https://github.com/mhbsiam/cafe"
-```
-
-You can now run `cafe` from any terminal. To update to the latest version later:
-```bash
-uv tool install --force "git+https://github.com/mhbsiam/cafe"
-```
-To remove it: `uv tool uninstall cafe-app` (the installed package is named `cafe-app`).
-
-> Already use **pipx** and have Python 3.12? The same commands work with
-> `pipx install` / `pipx uninstall` in place of `uv tool install` / `uv tool uninstall`.
-
-##
-
-## Run CAFE
-
-If you installed with **uv**, just open a terminal anywhere and run:
-
-```bash
-cafe
-```
-
-If you installed with **Pixi**, run it from the CAFE folder:
-
-```bash
-# Navigate to the directory containing pixi.toml
-cd ./path/to/cafe
-
-# Run the tool with pixi
-pixi run cafe
-```
-
-If you installed with **Conda**, activate the environment and run the script:
+After installing with **Conda**, activate the environment and run the script:
 
 ```bash
 # Navigate to the directory containing cafe.py
@@ -142,6 +130,8 @@ cd ./path/to/cafe
 conda activate cafe
 python cafe.py
 ```
+
+
 ##
 ## Workflow
 
