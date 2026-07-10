@@ -10,9 +10,11 @@ import zipfile
 
 import anndata as ad
 import matplotlib.pyplot as plt
+import matplotlib.colors  # noqa: F401  (ensures pandas Styler.background_gradient can resolve matplotlib.colors)
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import seaborn as sns
 import streamlit as st
 from scipy.stats import median_abs_deviation
 
@@ -26,28 +28,24 @@ from theme import (
     stepper,
 )
 from utils import (
+    compute_batch_emd,
     inspect_uploaded_csv_files,
+    marker_robust_scales,
     process_uploaded_csv_files,
+    recommend_nmads,
     run_combat_correction,
+    summarize_batch_effect,
 )
 
 sc.settings.n_jobs = -1
 apply_theme()
 
-# ---------------------------------------------------------------------------
-# Pipeline step labels
-# ---------------------------------------------------------------------------
-_STEPS = ["Upload", "QC", "PCA", "Batch", "UMAP + Leiden", "Export"]
+_STEPS = ["Upload", "QC", "PCA", "Batch", "UMAP + Leiden"]
 
-# ---------------------------------------------------------------------------
+
 # Core helpers
-# ---------------------------------------------------------------------------
 def mad_outlier_tails(values, nmads):
-    """Robust MAD-based outlier detection on a per-cell metric.
-
-    Returns (lower_mask, upper_mask, med, lower_cut, upper_cut). If the metric
-    is degenerate (MAD == 0) nothing is flagged.
-    """
+    """MAD outlier tails: (lower_mask, upper_mask, med, lower_cut, upper_cut); nothing flagged if MAD == 0."""
     values = np.asarray(values, dtype=float)
     med = np.median(values)
     mad = median_abs_deviation(values)
@@ -71,9 +69,10 @@ def get_total_signal(adata):
 
 
 def qc_preview_tables(
-    total_signal, groups, nmads_map, default_nmads, use_lower, use_upper
+    total_signal, groups, nmads_map, default_nmads, use_lower, use_upper,
+    cap_pct=5.0,
 ):
-    """Build summary and sensitivity tables for the QC preview."""
+    """Summary and sensitivity tables for the QC preview (cap_pct = target % removed for the recommendation)."""
     grid = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
     summary_rows = []
     sens_rows = []
@@ -97,6 +96,9 @@ def qc_preview_tables(
         this_nmads = nmads_map.get(label, default_nmads)
         lo = float("nan") if degenerate else med - this_nmads * mad
         hi = float("nan") if degenerate else med + this_nmads * mad
+        rec = recommend_nmads(
+            vals, cap_pct=cap_pct, use_lower=use_lower, use_upper=use_upper
+        )
         summary_rows.append(
             {
                 "SampleID": label,
@@ -107,6 +109,8 @@ def qc_preview_tables(
                 "lower cut": None if np.isnan(lo) else round(lo, 1),
                 "upper cut": None if np.isnan(hi) else round(hi, 1),
                 "% removed": pct_removed(this_nmads),
+                "recommended": rec,
+                "% at rec": None if rec is None else pct_removed(rec),
             }
         )
         sens = {"SampleID": label}
@@ -118,16 +122,79 @@ def qc_preview_tables(
     return summary_df, sens_df
 
 
-# ---------------------------------------------------------------------------
-# Reproducibility report
-#
-# Parameters chosen at each pipeline step are stashed into st.session_state as
-# they are applied (keys prefixed ``_params_``). At export time they are
-# assembled into a plain-text methods/parameters file bundled in the ZIP.
-# ---------------------------------------------------------------------------
+def _seed_per_sample_nmads(recs, cap):
+    """Seed each per-sample n_MADs from its recommendation; reseed when the cap changes, else keep overrides."""
+    prev = st.session_state.get("_qc_reco_cap_prev")
+    cap_changed = prev is not None and prev != cap
+    for sid, rec in recs.items():
+        key = f"qc_nmads_{sid}"
+        if key not in st.session_state or cap_changed:
+            st.session_state[key] = 5.0 if pd.isna(rec) else float(rec)
+    st.session_state["_qc_reco_cap_prev"] = cap
+
+
+# Review gate: each step stashes result items under a per-step key and reruns;
+# the gate renders them with one Continue button so results don't flash past.
+def _snapshot_fig(fig, tight=True):
+    """PNG bytes of a figure, then close it; tight=False keeps the exact canvas (for matched pixel sizes)."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=120, bbox_inches="tight" if tight else None)
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _render_review_items(items):
+    """Render a stored list of ``(kind, payload)`` result items."""
+    renderers = {
+        "success": lambda p: st.success(p),
+        "info": lambda p: st.info(p),
+        "warning": lambda p: st.warning(p),
+        "write": lambda p: st.write(p),
+        "caption": lambda p: st.caption(p),
+        "subheader": lambda p: st.subheader(p),
+        "image": lambda p: st.image(p, width="stretch"),
+        "image_row": lambda p: [
+            col.image(png, caption=cap, width="stretch")
+            for col, (png, cap) in zip(st.columns(len(p)), p)
+        ],
+        "dataframe": lambda p: st.dataframe(p, width="stretch"),
+    }
+    for kind, payload in items:
+        renderers[kind](payload)
+
+
+def _review_gate(pending_key, done_key, next_label):
+    """Render a step's stashed results with one Continue button that sets done_key and advances; else no-op."""
+    items = st.session_state.get(pending_key)
+    if items is None:
+        return
+    _render_review_items(items)
+    st.divider()
+    if st.button(
+        f"Continue to {next_label} →",
+        type="primary",
+        key=f"continue_{done_key}",
+    ):
+        st.session_state[done_key] = True
+        st.session_state.pop(pending_key, None)
+        st.rerun()
+    st.stop()
+
+
+# Reproducibility report: per-step params (keys prefixed _params_) assembled
+# into a plain-text methods file bundled in the ZIP.
 def _safe_filename(name):
     """Filesystem-safe token for a sample id used as a CSV filename."""
     return re.sub(r"[^A-Za-z0-9._-]+", "_", str(name)).strip("_") or "sample"
+
+
+# Canonical CAFE reference — cite this in any publication using CAFE outputs.
+_CAFE_CITATION = (
+    "Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Satwik Acharyya, "
+    "Mallikarjun Patil, Daniel J Tyrrell, CAFE: An Integrated Web App for "
+    "High-Dimensional Analysis and Visualization in Spectral Flow Cytometry, "
+    "Bioinformatics, 2025, btaf176, https://doi.org/10.1093/bioinformatics/btaf176"
+)
 
 
 def _methods_paragraph(adata, qc, pca, batch, umap):
@@ -148,15 +215,15 @@ def _methods_paragraph(adata, qc, pca, batch, umap):
                 f"outlier detection (±{qc.get('n_mads')} MADs) on each cell's total "
                 "marker signal."
             )
-    if pca.get("performed"):
-        parts.append(
-            f"Principal component analysis retained {pca.get('n_components')} components "
-            f"({pca.get('variance_threshold')}% variance)."
-        )
     if batch.get("method", "None") != "None":
         parts.append(
             f"{batch.get('method')} batch correction was applied across batches while "
             f"preserving the {', '.join(batch.get('covariates', []))} covariate(s)."
+        )
+    if pca.get("performed"):
+        parts.append(
+            f"Principal component analysis retained {pca.get('n_components')} components "
+            f"({pca.get('variance_threshold')}% variance)."
         )
     parts.append(
         f"A neighborhood graph (n_neighbors={umap.get('n_neighbors')}, "
@@ -166,6 +233,7 @@ def _methods_paragraph(adata, qc, pca, batch, umap):
         f"(resolution={umap.get('resolution')}), yielding {umap.get('n_clusters')} "
         "clusters. A fixed random seed (50) was used throughout."
     )
+    parts.append(f"When using CAFE, please cite: {_CAFE_CITATION}")
     return " ".join(parts)
 
 
@@ -216,16 +284,6 @@ def build_parameters_report(adata):
         add(f"Cells retained   : {qc.get('retained', adata.n_obs):,}")
     add("")
 
-    add("PRINCIPAL COMPONENT ANALYSIS")
-    add("-" * 52)
-    if not pca.get("performed"):
-        add("Not performed.")
-    else:
-        add(f"SVD solver       : {pca.get('solver')}")
-        add(f"Variance kept    : {pca.get('variance_threshold')}%")
-        add(f"Components used  : {pca.get('n_components')}")
-    add("")
-
     add("BATCH CORRECTION")
     add("-" * 52)
     if batch.get("method", "None") == "None":
@@ -234,11 +292,26 @@ def build_parameters_report(adata):
         add(f"Method           : {batch.get('method')}")
         add(f"Batch key        : {batch.get('batch_key')}")
         add(f"Covariates       : {', '.join(batch.get('covariates', []))}")
+        if batch.get("emd_before") is not None and batch.get("emd_after") is not None:
+            add(
+                f"Batch effect     : mean EMD {batch['emd_before']:.3f} -> "
+                f"{batch['emd_after']:.3f} (per-marker worst-batch EMD, after ComBat)"
+            )
         mapping = batch.get("mapping", {})
         if mapping:
             add("Sample -> Batch  :")
             for sid, b in mapping.items():
                 add(f"    {sid}: {b}")
+    add("")
+
+    add("PRINCIPAL COMPONENT ANALYSIS")
+    add("-" * 52)
+    if not pca.get("performed"):
+        add("Not performed.")
+    else:
+        add(f"SVD solver       : {pca.get('solver')}")
+        add(f"Variance kept    : {pca.get('variance_threshold')}%")
+        add(f"Components used  : {pca.get('n_components')}")
     add("")
 
     add("NEIGHBORS / UMAP / LEIDEN")
@@ -265,12 +338,228 @@ def build_parameters_report(adata):
     add("-" * 52)
     add(_methods_paragraph(adata, qc, pca, batch, umap))
     add("")
+
+    add("CITATION")
+    add("-" * 52)
+    add("If you use CAFE in your research, please cite:")
+    add(_CAFE_CITATION)
+    add("")
     return "\n".join(L)
 
 
-# ---------------------------------------------------------------------------
+def build_outputs_zip(adata, resolution, umap_pngs=None):
+    """Package all analysis outputs into a ZIP and return (bytes, filename); umap_pngs is {name: png_bytes}."""
+    random_number = random.randint(1000, 9999)
+    zip_file_name = f"analysis_outputs_{random_number}.zip"
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".h5ad") as temp_file:
+            temp_path = temp_file.name
+            adata.write(temp_path)
+        zip_file.write(
+            temp_path, arcname=f"adata_{resolution}_{random_number}.h5ad"
+        )
+        os.remove(temp_path)
+
+        cluster_sample_counts = (
+            adata.obs.groupby(["leiden", "SampleID"], observed=False).size().unstack(fill_value=0)
+        )
+        cluster_sample_counts_csv = io.BytesIO()
+        cluster_sample_counts.to_csv(cluster_sample_counts_csv)
+        cluster_sample_counts_csv.seek(0)
+        zip_file.writestr(
+            f"cluster_sample_counts_{random_number}.csv",
+            cluster_sample_counts_csv.getvalue(),
+        )
+
+        sample_totals = cluster_sample_counts.sum()
+        cluster_sample_percentages = cluster_sample_counts.div(sample_totals) * 100
+        cluster_sample_frequencies_csv = io.BytesIO()
+        cluster_sample_percentages.to_csv(cluster_sample_frequencies_csv)
+        cluster_sample_frequencies_csv.seek(0)
+        zip_file.writestr(
+            f"cluster_sample_frequencies_{random_number}.csv",
+            cluster_sample_frequencies_csv.getvalue(),
+        )
+
+        median_df = adata.to_df()
+        median_df["leiden"] = adata.obs["leiden"]
+        median_df["SampleID"] = adata.obs["SampleID"]
+        medians = median_df.groupby(["leiden", "SampleID"], observed=False).median()
+        median_csv = io.BytesIO()
+        medians.to_csv(median_csv)
+        median_csv.seek(0)
+        zip_file.writestr(
+            f"median_expression_{random_number}.csv", median_csv.getvalue()
+        )
+
+        # Reproducibility: plain-text methods & parameters report.
+        zip_file.writestr(
+            f"analysis_parameters_{random_number}.txt",
+            build_parameters_report(adata),
+        )
+
+        # One CSV per sample with cluster label + UMAP coords, for FlowJo re-import.
+        expr_df = adata.to_df()
+        umap_coords = adata.obsm.get("X_umap")
+        leiden_num = pd.to_numeric(adata.obs["leiden"], errors="coerce").to_numpy()
+        sample_ids_arr = adata.obs["SampleID"].to_numpy()
+        group_arr = adata.obs["Group"].to_numpy()
+        for sid in pd.unique(sample_ids_arr):
+            mask = sample_ids_arr == sid
+            sub = expr_df.loc[mask].copy()
+            sub["Leiden_Cluster"] = leiden_num[mask]
+            sub["Group"] = group_arr[mask]
+            if umap_coords is not None:
+                sub["UMAP_1"] = umap_coords[mask, 0]
+                sub["UMAP_2"] = umap_coords[mask, 1]
+            sample_csv = io.BytesIO()
+            sub.to_csv(sample_csv, index=False)
+            sample_csv.seek(0)
+            zip_file.writestr(
+                f"per_sample_clustered/{_safe_filename(sid)}.csv",
+                sample_csv.getvalue(),
+            )
+
+        # The UMAP figures shown on the results page, as they were rendered.
+        for name, png_bytes in (umap_pngs or {}).items():
+            if png_bytes is not None:
+                zip_file.writestr(f"umap_plots/{name}_{random_number}.png", png_bytes)
+
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue(), zip_file_name
+
+
+# Batch effect diagnostics (read-only), shown before the correction choice.
+def _sample_median_zscore(adata):
+    """Per-sample median expression, z-scored per marker across samples."""
+    df = adata.to_df()
+    df["SampleID"] = adata.obs["SampleID"].astype(str).to_numpy()
+    med = df.groupby("SampleID").median(numeric_only=True)
+    z = (med - med.mean(axis=0)) / med.std(axis=0)
+    return z.fillna(0.0)
+
+
+def render_batch_diagnostics(adata, batch_map):
+    """Render batch-effect diagnostics for batch_map (writes adata.obs['Batch'], not X); returns per-marker EMD."""
+    adata.obs["Batch"] = adata.obs["SampleID"].astype(str).map(batch_map)
+
+    if adata.obs["Batch"].isnull().any() or (adata.obs["Batch"].astype(str) == "").any():
+        info_card(
+            title="Assign every sample to a batch",
+            body="Some samples have no batch assigned. Fill in the Batch column above before checking.",
+            kind="warning",
+        )
+        return pd.DataFrame()
+    if adata.obs["Batch"].nunique() < 2:
+        info_card(
+            title="Only one batch",
+            body="All samples are in a single batch, so there is nothing to compare. Assign at least two batches to check for batch effects.",
+            kind="info",
+        )
+        return pd.DataFrame()
+
+    emd_df = compute_batch_emd(adata, batch_key="Batch")
+    verdict, kind, _, _ = summarize_batch_effect(emd_df, adata, batch_key="Batch")
+    info_card(title="Batch effect check", body=verdict, kind=kind)
+
+    st.markdown("**Per-marker batch effect (Earth Mover's Distance)**")
+    st.caption(
+        "EMD between each batch and the pooled data, per marker (robustly scaled so "
+        "markers are comparable). Higher = more batch separation. `emd_max` is the "
+        "worst batch for that marker."
+    )
+    with st.expander("How the batch effect is measured"):
+        st.markdown(
+            "**Why per marker?** Batch effects in cytometry are channel-specific: "
+            "each marker can drift on its own (staining efficiency, detector gain, "
+            "spillover, day-to-day acquisition). Correction methods (CytoNorm, ComBat) "
+            "also work marker by marker, so it helps to see *which* markers are "
+            "affected, not just whether some overall effect exists.\n\n"
+            "**What is EMD?** Earth Mover's Distance (a.k.a. Wasserstein distance) "
+            "measures how different two distributions are. Picture a marker's values "
+            "as a pile of sand: EMD is the least amount of sand you would have to "
+            "shovel, and how far, to reshape one pile into the other. For each "
+            "marker we compare one batch's values against all batches pooled together. "
+            "If a batch is shifted or stretched relative to the rest (a technical "
+            "effect), the piles don't line up and EMD is large; if the batch looks "
+            "like everyone else, almost no sand moves and EMD stays near 0.\n\n"
+            "Values are divided by the pooled spread (median absolute deviation) so "
+            "markers with naturally large ranges don't dominate. Read the number as "
+            "roughly *how many robust standard deviations a batch is shifted*. As a "
+            "rough guide, EMD above ~0.5 flags a marker worth a closer look."
+        )
+    st.dataframe(
+        emd_df.style.format({"emd_max": "{:.3f}", "emd_mean": "{:.3f}"})
+        .background_gradient(subset=["emd_max"], cmap="YlOrRd"),
+        hide_index=True,
+        width="stretch",
+    )
+
+    ranked = emd_df.sort_values("emd_max")
+    fig, ax = plt.subplots(figsize=(6, max(2.0, 0.3 * len(ranked))))
+    ax.barh(ranked["marker"], ranked["emd_max"], color=TOKENS.primary)
+    ax.set_xlabel("EMD (worst batch vs pooled)")
+    ax.set_title("Per-marker batch effect")
+    st.pyplot(fig, width="stretch")
+    plt.close(fig)
+
+    # Sample-level view: do samples group by Batch (technical) or Group (biology)?
+    n_samples = adata.obs["SampleID"].nunique()
+    if n_samples >= 2 and adata.n_vars >= 2:
+        st.markdown("**Sample similarity (median expression)**")
+        st.caption(
+            "Each row is a sample. The colour strips mark Batch and Group. If samples "
+            "cluster by Batch, that points to a technical effect; if they cluster by "
+            "Group, that is your biology, so do not correct it away."
+        )
+        z = _sample_median_zscore(adata)
+        sample_batch = {sid: batch_map.get(str(sid), "?") for sid in z.index}
+        sample_group = dict(
+            zip(adata.obs["SampleID"].astype(str), adata.obs["Group"].astype(str))
+        )
+        batch_levels = sorted(set(sample_batch.values()))
+        group_levels = sorted(set(sample_group.get(str(s), "?") for s in z.index))
+        batch_pal = dict(zip(batch_levels, sns.color_palette("tab10", len(batch_levels))))
+        group_pal = dict(zip(group_levels, sns.color_palette("Set2", len(group_levels))))
+        row_colors = pd.DataFrame(
+            {
+                "Batch": [batch_pal[sample_batch[s]] for s in z.index],
+                "Group": [group_pal[sample_group.get(str(s), "?")] for s in z.index],
+            },
+            index=z.index,
+        )
+        try:
+            g = sns.clustermap(
+                z,
+                row_colors=row_colors,
+                cmap="RdBu_r",
+                center=0,
+                col_cluster=adata.n_vars >= 3,
+                figsize=(min(1.0 + 0.4 * adata.n_vars, 12), min(1.5 + 0.35 * n_samples, 12)),
+                cbar_kws={"label": "z-score"},
+            )
+            g.ax_heatmap.set_xlabel("Marker")
+            g.ax_heatmap.set_ylabel("Sample")
+            st.pyplot(g.fig, width="stretch")
+            plt.close(g.fig)
+        except Exception as exc:  # clustering can fail on degenerate input
+            st.caption(f"Could not draw the sample heatmap ({exc}).")
+
+    if "X_pca" in adata.obsm:
+        st.markdown("**PCA coloured by batch**")
+        fig, ax = plt.subplots()
+        sc.pl.pca(adata, color="Batch", ax=ax, show=False)
+        st.pyplot(fig, width="stretch")
+        plt.close(fig)
+    else:
+        st.caption("Run PCA (previous step) to also see a PCA scatter coloured by batch.")
+
+    return emd_df
+
+
 # Session state initialization
-# ---------------------------------------------------------------------------
 def _init_state():
     st.session_state.setdefault("adata", None)
     st.session_state.setdefault("uploaded_files", None)
@@ -284,17 +573,13 @@ def _init_state():
 
 _init_state()
 
-# ---------------------------------------------------------------------------
-# Page header
-# ---------------------------------------------------------------------------
 page_header(
     "Data Processing",
     subtitle="Upload CSVs, clean the data, run dimensionality reduction and clustering, then export a ZIP of results.",
 )
 
-# ---------------------------------------------------------------------------
+
 # Stepper state
-# ---------------------------------------------------------------------------
 def _current_step() -> int:
     if st.session_state.adata is None:
         return 0
@@ -304,9 +589,7 @@ def _current_step() -> int:
         return 2
     if not st.session_state.batch_correction_done:
         return 3
-    if not st.session_state.umap_computed:
-        return 4
-    return 5
+    return 4
 
 
 def _done_steps() -> set[int]:
@@ -319,16 +602,14 @@ def _done_steps() -> set[int]:
         done.add(2)
     if st.session_state.batch_correction_done:
         done.add(3)
-    if st.session_state.umap_computed:
+    if st.session_state.leiden_computed:
         done.add(4)
     return done
 
 
 stepper(_STEPS, _current_step(), _done_steps())
 
-# ---------------------------------------------------------------------------
 # Step 0: Upload CSVs
-# ---------------------------------------------------------------------------
 if st.session_state.adata is None:
     section_header(
         "Upload your CSV files",
@@ -348,10 +629,7 @@ if st.session_state.adata is None:
         kind="info",
     )
 
-    # Phase A — pick files. Once loaded we stash the raw files and a
-    # diagnostics summary in session, then rerun into the review phase (B) so
-    # the user can confirm samples, groups, cell counts and markers before
-    # committing to QC.
+    # Phase A: pick files, then rerun into the review phase (B).
     if st.session_state.get("_upload_review") is None:
         with st.form(key="upload_csv_form"):
             uploaded_files = st.file_uploader(
@@ -470,9 +748,7 @@ if st.session_state.adata is None:
 
 adata = st.session_state.adata
 
-# ---------------------------------------------------------------------------
 # Step 1: Quality Control
-# ---------------------------------------------------------------------------
 if not st.session_state.qc_done:
     section_header(
         "Quality Control",
@@ -480,25 +756,135 @@ if not st.session_state.qc_done:
         step=2,
     )
 
+    _review_gate("_qc_pending", "qc_done", "Batch correction")
+
     sample_ids = list(pd.unique(adata.obs["SampleID"])) if adata is not None else []
 
-    col_controls, col_preview = st.columns([2, 3])
+    info_card(
+        title="QC settings",
+        body="Choose whether to run QC globally, per sample, or skip it. Both the lower and upper tails of the total-signal distribution are removed (debris and doublets).",
+        kind="info",
+    )
 
-    with col_controls:
-        info_card(
-            title="QC settings",
-            body="Choose whether to run QC globally, per sample, or skip it. Both the lower and upper tails of the total-signal distribution are removed (debris and doublets).",
-            kind="info",
+    with st.expander("How MAD-based filtering works, and how to tweak it"):
+        st.markdown(
+            "**What it looks at.** For every cell we add up all its marker intensities "
+            "into one number, the *total marker signal*. Dead cells and debris tend to "
+            "have an abnormally low total; doublets and aggregates tend to have an "
+            "abnormally high one. Both are technical junk we want to drop.\n\n"
+            "**How the cutoffs are set.** We take the median of that total-signal "
+            "distribution and its MAD (median absolute deviation). MAD is a robust "
+            "measure of spread: because it is built from medians, a handful of extreme "
+            "cells cannot inflate it the way they would inflate a standard deviation. A "
+            "cell is flagged when its total signal falls below "
+            "`median - n x MAD` (debris) or above `median + n x MAD` (doublets). Both "
+            "tails are removed.\n\n"
+            "**How to tweak it.** The *Number of MADs* (`n`) sets how far from the "
+            "median the cutoffs sit. A higher `n` widens the window and removes fewer "
+            "cells (more lenient); a lower `n` tightens it and removes more (stricter). "
+            "The default of 5 is a common moderate choice. Choose *Perform QC per "
+            "sample* to compute the median and MAD within each sample, which is useful "
+            "when samples differ in overall brightness or were acquired on different "
+            "days.\n\n"
+            "**Before you commit.** Nothing is removed until you click *Apply QC*. The "
+            "summary table below shows each cutoff and the resulting % removed, and the "
+            "sensitivity table shows how that % changes across a range of `n` values, so "
+            "a sample whose removal climbs steeply as `n` drops is threshold-sensitive."
         )
 
-        qc_option = st.radio(
-            "Select QC option",
-            ("None", "Perform QC", "Perform QC per sample"),
-            key="qc_option",
+    with st.expander("Recommended n_MADs — quick reference"):
+        st.markdown(
+            "There is no universally correct MAD value — it trades off removing "
+            "technical junk against discarding real cells. Use this as a starting "
+            "point:"
         )
-        qc_per_sample = qc_option == "Perform QC per sample"
+        st.table(
+            pd.DataFrame(
+                [
+                    {
+                        "n_MADs": "2–3",
+                        "Stringency": "Strict",
+                        "When to use": "Clean, well-controlled samples; aggressively trims tails (risk: removes real cells).",
+                    },
+                    {
+                        "n_MADs": "4–5",
+                        "Stringency": "Moderate (default 5)",
+                        "When to use": "Robust general-purpose choice for most spectral flow data.",
+                    },
+                    {
+                        "n_MADs": "6–8",
+                        "Stringency": "Lenient",
+                        "When to use": "Noisy samples or rare populations you want to preserve.",
+                    },
+                ]
+            ).set_index("n_MADs")
+        )
+        st.caption(
+            "In per-sample mode each sample's n_MADs is auto-set from your *target "
+            "% removed per tail*: the tightest n that keeps each tail (debris and "
+            "doublets) at or under that target. Open *Fine-tune per sample* to "
+            "override individual samples. It is a transparent heuristic, not a "
+            "biological ground truth."
+        )
 
-        if qc_option == "Perform QC":
+    qc_option = st.radio(
+        "Select QC option",
+        ("None", "Perform QC", "Perform QC per sample"),
+        key="qc_option",
+    )
+    qc_per_sample = qc_option == "Perform QC per sample"
+
+    qc_tails = "Both"
+    nmads = 5.0
+    nmads_map = {}
+    reco_cap = 5.0
+
+    if qc_option != "None":
+        total_signal_preview = get_total_signal(adata)
+        use_lower_pv = qc_tails in ("Both", "Lower only (debris)")
+        use_upper_pv = qc_tails in ("Both", "Upper only (doublets)")
+
+        if qc_per_sample and sample_ids:
+            preview_groups = [
+                (sid, np.where(adata.obs["SampleID"].values == sid)[0])
+                for sid in sample_ids
+            ]
+            # Target cap auto-fills every sample's n_MADs; fine-tuning overrides it.
+            reco_cap = st.number_input(
+                "Target % removed per tail",
+                min_value=1.0,
+                max_value=20.0,
+                value=5.0,
+                step=0.5,
+                key="qc_reco_cap",
+                help="Each sample's n_MADs is auto-set to the tightest value that "
+                "keeps each tail (debris and doublets) at or under this %. Changing "
+                "it re-fills the per-sample values below.",
+            )
+            recs = {
+                sid: recommend_nmads(
+                    total_signal_preview[idx],
+                    cap_pct=reco_cap,
+                    use_lower=use_lower_pv,
+                    use_upper=use_upper_pv,
+                )
+                for sid, idx in preview_groups
+            }
+            _seed_per_sample_nmads(recs, reco_cap)
+            with st.expander("Fine-tune per sample (optional)", expanded=False):
+                st.caption(
+                    "Each sample starts from the recommended value for the target "
+                    "above. Override any you like — changing the target resets these."
+                )
+                for sid in sample_ids:
+                    nmads_map[sid] = st.number_input(
+                        f"n_MADs for {sid}",
+                        min_value=2.0,
+                        max_value=8.0,
+                        step=0.5,
+                        key=f"qc_nmads_{sid}",
+                    )
+        else:
             nmads = st.slider(
                 "Number of MADs (higher = fewer cells removed)",
                 min_value=2.0,
@@ -507,66 +893,34 @@ if not st.session_state.qc_done:
                 step=0.5,
                 key="qc_nmads",
             )
-        else:
-            nmads = 5.0
+            preview_groups = [("All samples", np.arange(adata.n_obs))]
 
-        qc_tails = "Both"
+        summary_df, sens_df = qc_preview_tables(
+            total_signal_preview,
+            preview_groups,
+            nmads_map,
+            nmads,
+            use_lower_pv,
+            use_upper_pv,
+            cap_pct=reco_cap,
+        )
 
-        nmads_map = {}
-        if qc_per_sample and sample_ids:
-            with st.expander("Per-sample MAD thresholds", expanded=True):
-                st.caption(
-                    "Each sample gets its own MAD threshold, computed within that sample. "
-                    "Lower a sample's value to filter it more aggressively."
-                )
-                for sid in sample_ids:
-                    nmads_map[sid] = st.number_input(
-                        f"n_MADs for {sid}",
-                        min_value=2.0,
-                        max_value=8.0,
-                        value=5.0,
-                        step=0.5,
-                        key=f"qc_nmads_{sid}",
-                    )
-
-    with col_preview:
-        if qc_option != "None":
-            total_signal_preview = get_total_signal(adata)
-            use_lower_pv = qc_tails in ("Both", "Lower only (debris)")
-            use_upper_pv = qc_tails in ("Both", "Upper only (doublets)")
-            if qc_per_sample and sample_ids:
-                preview_groups = [
-                    (sid, np.where(adata.obs["SampleID"].values == sid)[0])
-                    for sid in sample_ids
-                ]
-            else:
-                preview_groups = [("All samples", np.arange(adata.n_obs))]
-
-            summary_df, sens_df = qc_preview_tables(
-                total_signal_preview,
-                preview_groups,
-                nmads_map,
-                nmads,
-                use_lower_pv,
-                use_upper_pv,
-            )
-
-            st.caption(
-                "Preview of what the current thresholds would remove. Nothing is removed until you click Apply QC."
-            )
-            st.dataframe(
-                summary_df.style.background_gradient(
-                    subset=["% removed"], cmap="YlGnBu"
-                ),
-                width='stretch',
-            )
-            st.caption(
-                "Sensitivity — % of cells removed at each n_MADs. A row that climbs steeply as n_MADs drops is threshold-sensitive."
-            )
-            st.dataframe(
-                sens_df.style.background_gradient(cmap="YlGnBu", axis=1),
-                width='stretch',
-            )
+        st.caption(
+            "Preview of what the current thresholds would remove. Nothing is removed until you click Apply QC."
+        )
+        st.dataframe(
+            summary_df.style.background_gradient(
+                subset=["% removed"], cmap="YlGnBu"
+            ),
+            width='stretch',
+        )
+        st.caption(
+            "Sensitivity — % of cells removed at each n_MADs. A row that climbs steeply as n_MADs drops is threshold-sensitive."
+        )
+        st.dataframe(
+            sens_df.style.background_gradient(cmap="YlGnBu", axis=1),
+            width='stretch',
+        )
 
     apply_qc_button = st.button(
         label="Apply QC", type="primary", key="apply_qc_button"
@@ -648,12 +1002,10 @@ if not st.session_state.qc_done:
             ax.set_xlabel("Total marker signal per cell")
             ax.set_ylabel("Number of cells")
             ax.set_title("Per-cell total signal (MAD outlier cutoffs)")
-            st.pyplot(fig, width='stretch')
-            plt.close(fig)
+            hist_png = _snapshot_fig(fig)
 
             adata = adata[~remove_mask].copy()
             st.session_state.adata = adata
-            st.session_state.qc_done = True
             st.session_state.pop("_qc_total_signal", None)
 
             st.session_state["_params_qc"] = {
@@ -667,26 +1019,32 @@ if not st.session_state.qc_done:
                 "retained": adata.n_obs,
             }
 
-            st.success(
-                f"Removed {n_removed:,} of {n_before:,} cells ({pct_removed:.2f}%). "
-                f"Retained {adata.n_obs:,} cells."
-            )
-            st.write("Cells removed per sample:")
-            st.dataframe(removed_summary, width='stretch')
-            st.caption(f"QC completed in {time.time() - start_time:.2f} seconds")
+            # Stash results for the review gate.
+            st.session_state["_qc_pending"] = [
+                ("image", hist_png),
+                (
+                    "success",
+                    f"Removed {n_removed:,} of {n_before:,} cells ({pct_removed:.2f}%). "
+                    f"Retained {adata.n_obs:,} cells.",
+                ),
+                ("write", "Cells removed per sample:"),
+                ("dataframe", removed_summary),
+                ("caption", f"QC completed in {time.time() - start_time:.2f} seconds"),
+            ]
         st.rerun()
 
     st.stop()
 
-# ---------------------------------------------------------------------------
-# Step 2: PCA (optional)
-# ---------------------------------------------------------------------------
-if not st.session_state.pca_done:
+# Step 3: PCA (optional). Runs after batch correction so X_pca inherits it;
+# guarded to stay dormant until the batch step (below in the file) completes.
+if st.session_state.batch_correction_done and not st.session_state.pca_done:
     section_header(
         "Principal Component Analysis",
         subtitle="Optionally reduce dimensionality before computing neighbors and UMAP.",
-        step=3,
+        step=4,
     )
+
+    _review_gate("_pca_pending", "pca_done", "UMAP + Leiden")
 
     if "pca_selected" not in st.session_state:
         st.session_state.pca_selected = False
@@ -703,6 +1061,9 @@ if not st.session_state.pca_done:
                 st.session_state.pca_done = True
                 st.session_state.pca_selected = False
                 st.session_state["_params_pca"] = {"performed": False}
+                # No PCA means nothing to compare against; drop any pre-ComBat plots.
+                st.session_state.pop("_pre_combat_pca_batch", None)
+                st.session_state.pop("_pre_combat_pca_group", None)
             else:
                 st.session_state.pca_selected = True
             st.rerun()
@@ -735,9 +1096,11 @@ if not st.session_state.pca_done:
 
         pca_variance_ratio = adata.uns["pca"]["variance_ratio"].cumsum()
         threshold_mask = pca_variance_ratio >= variance_threshold / 100
+        threshold_warning = None
         if not threshold_mask.any():
-            st.warning(
-                f"No principal component reaches {variance_threshold}% variance. Using all {len(pca_variance_ratio)} components."
+            threshold_warning = (
+                f"No principal component reaches {variance_threshold}% variance. "
+                f"Using all {len(pca_variance_ratio)} components."
             )
             num_components = len(pca_variance_ratio)
         else:
@@ -755,7 +1118,6 @@ if not st.session_state.pca_done:
         progress += 25
         progress_bar.progress(progress)
         st.session_state.adata = adata
-        st.session_state.pca_done = True
         st.session_state["_params_pca"] = {
             "performed": True,
             "solver": pca_solver,
@@ -769,29 +1131,96 @@ if not st.session_state.pca_done:
         ax.set_ylabel("Explained Variance Ratio")
         ax.set_title("Explained Variance by PCA Components")
         ax.set_xticks(range(1, num_components + 1))
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+        variance_png = _snapshot_fig(fig)
 
-        st.write("PCA Results by Group:")
+        # Cumulative variance over all components (pca_variance_ratio was built before X_pca was sliced).
+        cum_pct = np.asarray(pca_variance_ratio) * 100.0
+        n_total = len(cum_pct)
+        retained_pct = float(cum_pct[num_components - 1])
         fig, ax = plt.subplots()
-        sc.pl.pca(st.session_state.adata, color="Group", ax=ax, show=False)
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+        ax.plot(
+            range(1, n_total + 1), cum_pct, marker="o", markersize=3,
+            color=TOKENS.primary,
+        )
+        ax.axhline(
+            variance_threshold, color="#c0392b", linestyle="--", linewidth=1,
+            label=f"{variance_threshold}% threshold",
+        )
+        ax.axvline(num_components, color="#c0392b", linestyle=":", linewidth=1)
+        ax.scatter([num_components], [retained_pct], color="#c0392b", zorder=5)
+        ax.annotate(
+            f"{num_components} components → {retained_pct:.1f}%",
+            xy=(num_components, retained_pct),
+            xytext=(0.5, min(retained_pct - 12, 88)),
+            textcoords=("data", "data"),
+            fontsize=9,
+        )
+        ax.set_xlabel("Number of components")
+        ax.set_ylabel("Cumulative explained variance (%)")
+        ax.set_title("Components retained at the variance threshold")
+        ax.set_ylim(0, 100)
+        ax.legend(loc="lower right")
+        cumulative_png = _snapshot_fig(fig)
 
-        st.success(f"PCA completed in {time.time() - start_time:.2f} seconds. Retained {num_components} components.")
+        # If ComBat ran, it stashed pre-correction PCA plots — show a before/after grid.
+        before_batch = st.session_state.get("_pre_combat_pca_batch")
+        before_group = st.session_state.get("_pre_combat_pca_group")
+        if before_batch is not None and before_group is not None:
+            fig, ax = plt.subplots()
+            sc.pl.pca(st.session_state.adata, color="Batch", ax=ax, show=False)
+            after_batch_png = _snapshot_fig(fig)
+            fig, ax = plt.subplots()
+            sc.pl.pca(st.session_state.adata, color="Group", ax=ax, show=False)
+            after_group_png = _snapshot_fig(fig)
+            scatter_items = [
+                ("subheader", "PCA before vs after ComBat — colored by Batch"),
+                ("image_row", [(before_batch, "Before ComBat"), (after_batch_png, "After ComBat")]),
+                ("subheader", "PCA before vs after ComBat — colored by Group"),
+                ("image_row", [(before_group, "Before ComBat"), (after_group_png, "After ComBat")]),
+            ]
+        else:
+            fig, ax = plt.subplots()
+            sc.pl.pca(st.session_state.adata, color="Group", ax=ax, show=False)
+            pca_scatter_png = _snapshot_fig(fig)
+            scatter_items = [
+                ("write", "PCA Results by Group:"),
+                ("image", pca_scatter_png),
+            ]
+
+        # Stash results for the review gate.
+        pca_items = []
+        if threshold_warning:
+            pca_items.append(("warning", threshold_warning))
+        pca_items += [
+            ("image", variance_png),
+            (
+                "write",
+                f"**{num_components} of {n_total}** components reach the "
+                f"{variance_threshold}% cumulative-variance threshold "
+                f"(retaining {retained_pct:.1f}%):",
+            ),
+            ("image", cumulative_png),
+            *scatter_items,
+            (
+                "success",
+                f"PCA completed in {time.time() - start_time:.2f} seconds. "
+                f"Retained {num_components} components.",
+            ),
+        ]
+        st.session_state["_pca_pending"] = pca_items
         st.rerun()
 
     st.stop()
 
-# ---------------------------------------------------------------------------
-# Step 3: Batch correction (optional)
-# ---------------------------------------------------------------------------
+# Step 2: Batch correction (optional). Runs before PCA so ComBat corrects X first.
 if not st.session_state.batch_correction_done:
     section_header(
         "Batch Correction",
         subtitle="Correct for technical batch effects. Batches must be distinct from biological groups.",
-        step=4,
+        step=3,
     )
+
+    _review_gate("_batch_pending", "batch_correction_done", "PCA")
 
     sample_ids = (
         sorted(pd.unique(adata.obs["SampleID"])) if adata is not None else []
@@ -808,28 +1237,46 @@ if not st.session_state.batch_correction_done:
         kind="warning",
     )
 
+    # Outside the correction form so edits persist across reruns and feed the diagnostic.
+    st.markdown("**Batch assignment**")
+    st.caption(
+        "Assign each sample to a technical batch (e.g. acquisition day or instrument). "
+        "Used both for the batch-effect check and for ComBat."
+    )
+    batch_assignment_df = st.data_editor(
+        pd.DataFrame(
+            {
+                "SampleID": sample_ids,
+                "Group": [sample_group.get(sid, "") for sid in sample_ids],
+                "Batch": ["1"] * len(sample_ids),
+            }
+        ),
+        disabled=["SampleID", "Group"],
+        hide_index=True,
+        width="stretch",
+        key="batch_assignment_editor",
+    )
+    batch_map = dict(
+        zip(
+            batch_assignment_df["SampleID"].astype(str),
+            batch_assignment_df["Batch"].astype(str),
+        )
+    )
+
+    # Diagnostic: is there actually a batch effect?
+    if st.button("Check for batch effects", key="dp_check_batch"):
+        st.session_state["_show_batch_diag"] = True
+    if st.session_state.get("_show_batch_diag"):
+        with st.spinner("Measuring batch effects…"):
+            render_batch_diagnostics(adata, batch_map)
+
+    # Correction choice.
     with st.form(key="batch_correction_form"):
         batch_correction_method = st.radio(
             "Select batch correction method",
             ("None", "ComBat"),
             key="batch_correction_method",
         )
-
-        st.caption("Batch assignment (used only when ComBat is selected):")
-        batch_assignment_df = st.data_editor(
-            pd.DataFrame(
-                {
-                    "SampleID": sample_ids,
-                    "Group": [sample_group.get(sid, "") for sid in sample_ids],
-                    "Batch": ["1"] * len(sample_ids),
-                }
-            ),
-            disabled=["SampleID", "Group"],
-            hide_index=True,
-            width='stretch',
-            key="batch_assignment_editor",
-        )
-
         submit_button = st.form_submit_button(label="Apply", type="primary")
 
     if submit_button:
@@ -837,20 +1284,37 @@ if not st.session_state.batch_correction_done:
             st.error("The 'Group' column does not exist in adata.obs.")
             st.session_state.batch_correction_done = True
             st.session_state["_params_batch"] = {"method": "None"}
+            st.session_state["_show_batch_diag"] = False
+            # Drop the Batch column the read-only diagnostic left behind.
+            adata.obs.drop(columns=["Batch"], inplace=True, errors="ignore")
             st.rerun()
         elif batch_correction_method == "None":
             st.session_state.batch_correction_done = True
             st.session_state["_params_batch"] = {"method": "None"}
+            st.session_state["_show_batch_diag"] = False
+            # No correction means no Batch annotation downstream.
+            adata.obs.drop(columns=["Batch"], inplace=True, errors="ignore")
             st.info("No batch correction applied.")
             st.rerun()
         else:
-            batch_map = dict(
-                zip(
-                    batch_assignment_df["SampleID"].astype(str),
-                    batch_assignment_df["Batch"].astype(str),
-                )
-            )
             adata.obs["Batch"] = adata.obs["SampleID"].astype(str).map(batch_map)
+
+            # Fix the per-marker scale pre-correction and reuse it after, so before/after EMD share a denominator.
+            emd_scales = marker_robust_scales(adata)
+            emd_before = compute_batch_emd(adata, batch_key="Batch", scales=emd_scales)
+
+            # Capture pre-ComBat PCA now (before ComBat mutates adata.X in place), so the
+            # PCA step can show a before/after comparison. Store only PNG bytes — bdata is
+            # discarded — keeping memory flat on large datasets.
+            bdata = adata.copy()
+            sc.tl.pca(bdata)
+            fig, ax = plt.subplots()
+            sc.pl.pca(bdata, color="Batch", ax=ax, show=False)
+            st.session_state["_pre_combat_pca_batch"] = _snapshot_fig(fig)
+            fig, ax = plt.subplots()
+            sc.pl.pca(bdata, color="Group", ax=ax, show=False)
+            st.session_state["_pre_combat_pca_group"] = _snapshot_fig(fig)
+            del bdata
 
             start_time = time.time()
             ok, msg = run_combat_correction(adata, batch_key="Batch", covariates=("Group",))
@@ -860,34 +1324,224 @@ if not st.session_state.batch_correction_done:
                 st.error(msg)
                 adata.obs.drop(columns=["Batch"], inplace=True, errors="ignore")
             else:
-                st.success(f"{msg} (in {elapsed_time:.2f} seconds)")
-                st.subheader("PCA After Batch Correction")
-                fig, ax = plt.subplots()
-                sc.pl.pca(adata, color="Group", ax=ax, show=False)
-                st.pyplot(fig, width='stretch')
-                plt.close(fig)
+                emd_after = compute_batch_emd(adata, batch_key="Batch", scales=emd_scales)
+                batch_items = [("success", f"{msg} (in {elapsed_time:.2f} seconds)")]
+
+                # Before/after batch effect comparison.
+                if not emd_before.empty and not emd_after.empty:
+                    comp = emd_before[["marker", "emd_max"]].merge(
+                        emd_after[["marker", "emd_max"]],
+                        on="marker",
+                        suffixes=("_before", "_after"),
+                    )
+                    comp["change"] = comp["emd_max_after"] - comp["emd_max_before"]
+                    comp_styled = (
+                        comp.rename(
+                            columns={
+                                "emd_max_before": "EMD before",
+                                "emd_max_after": "EMD after",
+                            }
+                        )
+                        .style.format(
+                            {"EMD before": "{:.3f}", "EMD after": "{:.3f}", "change": "{:+.3f}"}
+                        )
+                        .hide(axis="index")
+                    )
+                    lim = max(comp["emd_max_before"].max(), comp["emd_max_after"].max(), 0.01) * 1.05
+                    fig, ax = plt.subplots()
+                    ax.scatter(comp["emd_max_before"], comp["emd_max_after"], color=TOKENS.primary)
+                    ax.plot([0, lim], [0, lim], color=TOKENS.primary, linestyle="--", linewidth=1)
+                    ax.set_xlim(0, lim)
+                    ax.set_ylim(0, lim)
+                    ax.set_xlabel("EMD before")
+                    ax.set_ylabel("EMD after")
+                    ax.set_title("Batch effect before vs after ComBat")
+                    scatter_png = _snapshot_fig(fig)
+                    n_improved = int((comp["change"] < 0).sum())
+                    mean_before = float(comp["emd_max_before"].mean())
+                    mean_after = float(comp["emd_max_after"].mean())
+                    verdict = (
+                        f"Batch effect reduced on {n_improved}/{len(comp)} markers "
+                        f"(mean worst-batch EMD {mean_before:.3f} → {mean_after:.3f})."
+                    )
+                    batch_items += [
+                        (
+                            "success" if mean_after < mean_before else "warning",
+                            verdict,
+                        ),
+                        ("subheader", "Batch effect before vs after"),
+                        (
+                            "caption",
+                            "EMD per marker before and after ComBat. Negative change = "
+                            "the batch effect shrank. Points below the diagonal improved.",
+                        ),
+                        ("dataframe", comp_styled),
+                        ("image", scatter_png),
+                    ]
 
                 st.session_state.adata = adata
-                st.session_state.batch_correction_done = True
+                st.session_state["_show_batch_diag"] = False
                 st.session_state["_params_batch"] = {
                     "method": "ComBat",
                     "batch_key": "Batch",
                     "covariates": ["Group"],
                     "mapping": batch_map,
+                    "emd_before": (
+                        float(emd_before["emd_max"].mean()) if not emd_before.empty else None
+                    ),
+                    "emd_after": (
+                        float(emd_after["emd_max"].mean()) if not emd_after.empty else None
+                    ),
                 }
+                # Stash results for the review gate.
+                st.session_state["_batch_pending"] = batch_items
                 st.rerun()
 
     st.stop()
 
-# ---------------------------------------------------------------------------
-# Step 4: UMAP + Leiden clustering
-# ---------------------------------------------------------------------------
+# Step 4: UMAP + Leiden. Final step: compute form, then the terminal
+# results-and-download page. umap_computed stays False (no later step).
 if not st.session_state.umap_computed:
     section_header(
         "UMAP + Leiden Clustering",
         subtitle="Compute the nearest-neighbor graph, UMAP embedding, and Leiden clusters.",
         step=5,
     )
+
+    # Once clustering has run (_umap_pending set), this is the terminal page:
+    # UMAPs, package the ZIP, and download inline.
+    if st.session_state.get("_umap_pending") is not None:
+        adata = st.session_state.get("adata")
+        if adata is None:
+            st.error("No processed data found. Please complete the pipeline first.")
+            st.stop()
+
+        st.success("Clustering complete.")
+
+        umap_fig_leiden = st.session_state.get("_umap_fig_leiden")
+        umap_fig_group = st.session_state.get("_umap_fig_group")
+        if umap_fig_leiden is not None and umap_fig_group is not None:
+            umap_col1, umap_col2 = st.columns(2)
+            with umap_col1:
+                st.image(umap_fig_leiden, width="stretch")
+            with umap_col2:
+                st.image(umap_fig_group, width="stretch")
+
+        # One-line run summary.
+        _pca = "PCA" if st.session_state.get("pca_selected") else "no PCA"
+        _batch = st.session_state.get("_params_batch", {}).get("method", "None")
+        _batch = "no batch correction" if _batch == "None" else f"{_batch} correction"
+        st.caption(
+            f"{adata.n_obs:,} cells  ·  {adata.obs['SampleID'].nunique()} samples  ·  "
+            f"{adata.obs['leiden'].nunique()} Leiden clusters  ·  {_pca}  ·  {_batch}"
+        )
+
+        # UMAP PNGs to bundle, named here so build_outputs_zip stays state-agnostic.
+        group_key = "Group" if "Group" in adata.obs else "SampleID"
+        umap_pngs = {
+            "umap_leiden_clusters": st.session_state.get("_umap_fig_leiden"),
+            f"umap_{_safe_filename(group_key)}": st.session_state.get("_umap_fig_group"),
+        }
+
+        # Let the user take in the UMAPs first, then package. The 2s beat runs once
+        # (guarded by _packaging_started) and we rerun into the packaging phase so the
+        # spinner shows on a clean render, after the plots are on screen. Bytes are
+        # cached so the download button is instant. Non-fatal on failure: the fallback
+        # build button covers it.
+        if st.session_state.get("_last_zip_buffer") is None:
+            if not st.session_state.get("_packaging_started"):
+                st.session_state["_packaging_started"] = True
+                time.sleep(2)
+                st.rerun()
+            resolution = st.session_state.get("_umap_resolution", 0.5)
+            try:
+                with st.spinner("Packaging your files for download…"):
+                    zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs)
+                st.session_state["_last_zip_buffer"] = zip_bytes
+                st.session_state["_last_zip_name"] = zip_name
+            except Exception as exc:  # noqa: BLE001 — surface, don't crash the page
+                st.warning(
+                    f"Couldn't package the download automatically ({exc}). "
+                    "Use the button below to build it."
+                )
+
+        zip_buffer = st.session_state.get("_last_zip_buffer")
+        zip_file_name = st.session_state.get("_last_zip_name", "analysis_outputs.zip")
+
+        if zip_buffer is not None:
+            st.download_button(
+                label="Download all outputs (.zip)",
+                data=zip_buffer,
+                file_name=zip_file_name,
+                mime="application/zip",
+                type="primary",
+                width="stretch",
+            )
+        elif st.button(
+            "Download all outputs (.zip)",
+            type="primary",
+            key="dp_build_zip",
+            width="stretch",
+        ):
+            # Fallback: build on demand, then rerun to render the ready button.
+            resolution = st.session_state.get("_umap_resolution", 0.5)
+            with st.spinner(
+                "Preparing your download — this can take a moment for large datasets…"
+            ):
+                zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs)
+            st.session_state["_last_zip_buffer"] = zip_bytes
+            st.session_state["_last_zip_name"] = zip_name
+            st.rerun()
+
+        with st.expander("What's in the download"):
+            st.markdown(
+                "- **`adata_*.h5ad`** — processed AnnData for the Visualization page\n"
+                "- **`analysis_parameters_*.txt`** — every parameter used, a draft "
+                "methods paragraph, and the CAFE citation\n"
+                "- **`per_sample_clustered/`** — one CSV per sample with a "
+                "`Leiden_Cluster` column and UMAP coordinates, ready to re-import "
+                "into FlowJo\n"
+                "- **`umap_plots/`** — the two UMAPs above (Leiden clusters and "
+                "group) as PNGs\n"
+                "- cluster count, frequency, and median-expression tables"
+            )
+
+        st.caption(
+            "Next: upload the `.h5ad` to the Visualization page to explore clusters "
+            "and build publication figures."
+        )
+
+        st.divider()
+
+        if st.button("Start over", type="secondary", key="dp_start_over"):
+            for key in [
+                "adata",
+                "uploaded_files",
+                "batch_correction_done",
+                "umap_computed",
+                "pca_done",
+                "leiden_computed",
+                "qc_done",
+                "pca_selected",
+                "_qc_total_signal",
+                "_last_zip_buffer",
+                "_last_zip_name",
+                "_packaging_started",
+                "_umap_resolution",
+                "_upload_review",
+                "_upload_files",
+                "_show_batch_diag",
+                "_qc_pending",
+                "_pca_pending",
+                "_batch_pending",
+                "_umap_pending",
+                "_pre_combat_pca_batch",
+                "_pre_combat_pca_group",
+            ]:
+                st.session_state.pop(key, None)
+            st.rerun()
+
+        st.stop()
 
     with st.form(key="umap_leiden_form"):
         col1, col2 = st.columns(2)
@@ -931,21 +1585,23 @@ if not st.session_state.umap_computed:
                 help="Determines how distances between data points are calculated.",
             )
 
-        flavor_options = ["igraph", "leidenalg"]
-        selected_flavor = st.selectbox(
-            "Leiden flavor",
-            options=flavor_options,
-            index=0,
-        )
-
-        dim_option = ["None", "X_pca", "X_umap"]
-        pca_default_index = 1 if st.session_state.get("pca_selected", False) else 0
-        selected_dim = st.selectbox(
-            "Dimension reduction metric to use",
-            options=dim_option,
-            index=pca_default_index,
-            help="Select None if you have not reduced the data using PCA.",
-        )
+        col3, col4 = st.columns(2)
+        with col3:
+            flavor_options = ["igraph", "leidenalg"]
+            selected_flavor = st.selectbox(
+                "Leiden flavor",
+                options=flavor_options,
+                index=0,
+            )
+        with col4:
+            dim_option = ["None", "X_pca", "X_umap"]
+            pca_default_index = 1 if st.session_state.get("pca_selected", False) else 0
+            selected_dim = st.selectbox(
+                "Dimension reduction metric to use",
+                options=dim_option,
+                index=pca_default_index,
+                help="Select None if you have not reduced the data using PCA.",
+            )
 
         submit_button = st.form_submit_button(
             label="Apply and Compute", type="primary"
@@ -1011,7 +1667,31 @@ if not st.session_state.umap_computed:
                 progress_bar.progress(progress)
 
                 update_elapsed_time()
-                status_placeholder.markdown("**Step 4/4: Saving outputs…**")
+                status_placeholder.markdown("**Step 4/4: Finalizing…**")
+
+                # Two UMAPs (Leiden, group) snapshot to PNG. Fixed canvas + axes
+                # position gives both identical pixel size regardless of legend width.
+                group_key = "Group" if "Group" in adata.obs else "SampleID"
+
+                def _umap_panel(color, title):
+                    fig = plt.figure(figsize=(6, 5))
+                    ax = fig.add_axes([0.12, 0.12, 0.60, 0.78])
+                    sc.pl.umap(
+                        adata,
+                        color=color,
+                        ax=ax,
+                        show=False,
+                        title=title,
+                        frameon=True,
+                    )
+                    return _snapshot_fig(fig, tight=False)
+
+                st.session_state["_umap_fig_leiden"] = _umap_panel(
+                    "leiden", "Leiden clusters"
+                )
+                st.session_state["_umap_fig_group"] = _umap_panel(
+                    group_key, group_key
+                )
 
                 st.session_state["_params_umap"] = {
                     "resolution": resolution,
@@ -1024,180 +1704,20 @@ if not st.session_state.umap_computed:
                     "random_state": 50,
                 }
 
-                random_number = random.randint(1000, 9999)
-                zip_file_name = f"analysis_outputs_{random_number}.zip"
-
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-                    with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=".h5ad"
-                    ) as temp_file:
-                        temp_path = temp_file.name
-                        adata.write(temp_path)
-
-                    zip_file.write(
-                        temp_path,
-                        arcname=f"adata_{resolution}_{random_number}.h5ad",
-                    )
-                    os.remove(temp_path)
-
-                    cluster_sample_counts = (
-                        adata.obs.groupby(["leiden", "SampleID"])
-                        .size()
-                        .unstack(fill_value=0)
-                    )
-                    cluster_sample_counts_csv = io.BytesIO()
-                    cluster_sample_counts.to_csv(cluster_sample_counts_csv)
-                    cluster_sample_counts_csv.seek(0)
-                    zip_file.writestr(
-                        f"cluster_sample_counts_{random_number}.csv",
-                        cluster_sample_counts_csv.getvalue(),
-                    )
-
-                    sample_totals = cluster_sample_counts.sum()
-                    cluster_sample_percentages = (
-                        cluster_sample_counts.div(sample_totals) * 100
-                    )
-                    cluster_sample_frequencies_csv = io.BytesIO()
-                    cluster_sample_percentages.to_csv(
-                        cluster_sample_frequencies_csv
-                    )
-                    cluster_sample_frequencies_csv.seek(0)
-                    zip_file.writestr(
-                        f"cluster_sample_frequencies_{random_number}.csv",
-                        cluster_sample_frequencies_csv.getvalue(),
-                    )
-
-                    median_df = adata.to_df()
-                    median_df["leiden"] = adata.obs["leiden"]
-                    median_df["SampleID"] = adata.obs["SampleID"]
-                    medians = median_df.groupby(["leiden", "SampleID"]).median()
-                    median_csv = io.BytesIO()
-                    medians.to_csv(median_csv)
-                    median_csv.seek(0)
-                    zip_file.writestr(
-                        f"median_expression_{random_number}.csv",
-                        median_csv.getvalue(),
-                    )
-
-                    # Reproducibility: plain-text methods & parameters report.
-                    zip_file.writestr(
-                        f"analysis_parameters_{random_number}.txt",
-                        build_parameters_report(adata),
-                    )
-
-                    # Round-trip: one CSV per sample carrying the cluster label
-                    # (and UMAP coordinates) as extra columns, so users can
-                    # re-import into FlowJo and overlay clusters on their gates.
-                    expr_df = adata.to_df()
-                    umap_coords = adata.obsm.get("X_umap")
-                    leiden_num = pd.to_numeric(adata.obs["leiden"], errors="coerce").to_numpy()
-                    sample_ids_arr = adata.obs["SampleID"].to_numpy()
-                    group_arr = adata.obs["Group"].to_numpy()
-                    for sid in pd.unique(sample_ids_arr):
-                        mask = sample_ids_arr == sid
-                        sub = expr_df.loc[mask].copy()
-                        sub["Leiden_Cluster"] = leiden_num[mask]
-                        sub["Group"] = group_arr[mask]
-                        if umap_coords is not None:
-                            sub["UMAP_1"] = umap_coords[mask, 0]
-                            sub["UMAP_2"] = umap_coords[mask, 1]
-                        sample_csv = io.BytesIO()
-                        sub.to_csv(sample_csv, index=False)
-                        sample_csv.seek(0)
-                        zip_file.writestr(
-                            f"per_sample_clustered/{_safe_filename(sid)}.csv",
-                            sample_csv.getvalue(),
-                        )
-
-                zip_buffer.seek(0)
-
-                st.session_state["_last_zip_buffer"] = zip_buffer.getvalue()
-                st.session_state["_last_zip_name"] = zip_file_name
+                # Drop the now-stale ZIP; stash resolution for output filenames.
+                st.session_state.pop("_last_zip_buffer", None)
+                st.session_state.pop("_last_zip_name", None)
+                st.session_state["_umap_resolution"] = resolution
                 st.session_state["leiden_computed"] = True
-                st.session_state["umap_computed"] = True
 
                 progress += 25
                 progress_bar.progress(progress)
                 update_elapsed_time()
                 status_placeholder.markdown("**Computation completed!**")
-                st.success("Clustering complete. Download your results below.")
+                # _umap_pending flips this page into its terminal state on rerun.
+                st.session_state["_umap_pending"] = [
+                    ("success", "Clustering complete."),
+                ]
                 st.rerun()
 
     st.stop()
-
-# ---------------------------------------------------------------------------
-# Step 5: Export
-# ---------------------------------------------------------------------------
-adata = st.session_state.get("adata")
-if adata is None:
-    st.error("No processed data found. Please complete the pipeline first.")
-    st.stop()
-else:
-    section_header(
-        "Export Results",
-        subtitle="Download the processed AnnData object and per-cluster tables.",
-        step=6,
-    )
-
-    info_card(
-        title="Pipeline summary",
-        body=(
-            f"- <strong>{adata.n_obs:,}</strong> cells after QC<br>"
-            f"- <strong>{adata.obs['SampleID'].nunique()}</strong> samples<br>"
-            f"- <strong>{adata.obs['leiden'].nunique()}</strong> Leiden clusters<br>"
-            f"- PCA: {'yes' if st.session_state.get('pca_selected') else 'no'}<br>"
-            f"- Batch correction: {'yes' if 'Batch' in adata.obs.columns else 'no'}"
-        ),
-        kind="success",
-    )
-
-    zip_buffer = st.session_state.get("_last_zip_buffer")
-    zip_file_name = st.session_state.get("_last_zip_name", "analysis_outputs.zip")
-    if zip_buffer is not None:
-        st.download_button(
-            label="Download All Outputs as ZIP",
-            data=zip_buffer,
-            file_name=zip_file_name,
-            mime="application/zip",
-            type="primary",
-        )
-    else:
-        st.warning("No ZIP output found in session. Return to UMAP + Leiden and recompute.")
-
-    info_card(
-        title="What's in the ZIP",
-        body=(
-            "- <code>adata_*.h5ad</code> — processed AnnData for the Visualization page<br>"
-            "- <code>analysis_parameters_*.txt</code> — every parameter used, plus a draft methods paragraph<br>"
-            "- <code>per_sample_clustered/</code> — one CSV per sample with a <code>Leiden_Cluster</code> "
-            "column (and UMAP coordinates) to re-import into FlowJo and overlay clusters on your gates<br>"
-            "- cluster count, frequency, and median-expression tables"
-        ),
-        kind="info",
-    )
-
-    info_card(
-        title="Next step",
-        body="Upload the downloaded <code>.h5ad</code> file to the Visualization page to explore clusters and produce publication figures.",
-        kind="info",
-    )
-
-    if st.button("Start over", type="secondary", key="dp_start_over"):
-        for key in [
-            "adata",
-            "uploaded_files",
-            "batch_correction_done",
-            "umap_computed",
-            "pca_done",
-            "leiden_computed",
-            "qc_done",
-            "pca_selected",
-            "_qc_total_signal",
-            "_last_zip_buffer",
-            "_last_zip_name",
-            "_upload_review",
-            "_upload_files",
-        ]:
-            st.session_state.pop(key, None)
-        st.rerun()

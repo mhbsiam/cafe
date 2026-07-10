@@ -16,7 +16,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
-from utils import run_combat_correction
+from utils import run_combat_correction, _process_single_table
 
 
 
@@ -56,31 +56,12 @@ def process_csv_files(input_dir, output_dir):
         file_path = os.path.join(input_dir, csv_file)
         table = pv.read_csv(file_path)
 
-        numeric_columns = [col for col in table.column_names if pa.types.is_integer(table.schema.field(col).type)]
-        for col in numeric_columns:
-            table = table.set_column(table.column_names.index(col), col, table.column(col).cast(pa.float64()))
-
-        if 'SampleID' in table.column_names:
-            table = table.set_column(table.column_names.index('SampleID'), 'SampleID', table.column('SampleID').cast(pa.string()))
-        if 'Group' in table.column_names:
-            table = table.set_column(table.column_names.index('Group'), 'Group', table.column('Group').cast(pa.string()))
-
-        # Drop pre-existing SampleID/Group
-        if 'SampleID' in table.column_names:
-            table = table.drop(['SampleID'])
-        if 'Group' in table.column_names:
-            table = table.drop(['Group'])
-
-        # Extract SampleID and Group from filename
-        name_parts = csv_file.replace('.csv', '').split('_')
-        if len(name_parts) != 2:
-            print(f"Skipping file {csv_file} as it does not have the expected format 'sampleID_group.csv'")
+        # Shared parser so the HPC path and the app use one implementation.
+        processed, skip_msg = _process_single_table(table, csv_file)
+        if processed is None:
+            print(skip_msg)
             continue
-
-        # Add SampleID and Group columns
-        table = table.append_column('SampleID', pa.array([name_parts[0]] * len(table)))
-        table = table.append_column('Group', pa.array([name_parts[1]] * len(table)))
-        tables.append(table)
+        tables.append(processed)
 
     # Combine tables
     if not tables:
@@ -189,7 +170,7 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
             print(f"UMAP plot saved as: {umap_plot_path}")
 
             # Compute and save cluster sample counts
-            cluster_sample_counts = adata.obs.groupby(['leiden', 'SampleID']).size().unstack(fill_value=0)
+            cluster_sample_counts = adata.obs.groupby(['leiden', 'SampleID'], observed=False).size().unstack(fill_value=0)
             output_cluster_csv = os.path.join(output_dir, f'cluster_counts_n{n_neighbors}_r{resolution}.csv')
             cluster_sample_counts.to_csv(output_cluster_csv)
             print(f"Cluster sample counts saved as: {output_cluster_csv}")
@@ -205,7 +186,7 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
             median_df = adata.to_df()
             median_df['leiden'] = adata.obs['leiden']
             median_df['SampleID'] = adata.obs['SampleID']
-            medians = median_df.groupby(['leiden', 'SampleID']).median()
+            medians = median_df.groupby(['leiden', 'SampleID'], observed=False).median()
             output_median_csv = os.path.join(output_dir, f'median_expression_n{n_neighbors}_r{resolution}.csv')
             medians.to_csv(output_median_csv)
             print(f"Median expression saved as: {output_median_csv}")

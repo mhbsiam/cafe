@@ -1,17 +1,4 @@
-"""Interactive UMAP embedding explorer (Phase 1 of the "overdrive" pass).
-
-The publication figures on this page are static matplotlib PNG/SVG exports
-rendered by ``sc.pl.umap`` — deliberately unchanged, because that is what ends
-up in papers. This module adds a *live* companion view on top of them: a
-GPU-accelerated Plotly ``Scattergl`` scatter of the same ``adata.obsm['X_umap']``
-coordinates that a researcher can pan, zoom, hover, and lasso-select.
-
-Design constraints (CAFE is a serious lab tool, datasets < ~100k cells):
-  * WebGL (``Scattergl``) keeps interaction at 60fps without a heavy stack.
-  * Palette + font mirror the static plots so the two views read as one tool.
-  * Zoom survives recolors via ``uirevision`` so exploration isn't reset.
-  * Nothing here writes files or mutates ``adata`` — it is purely additive.
-"""
+"""Interactive UMAP explorer: a live Plotly Scattergl companion to the static figures; additive, never writes files or mutates adata."""
 import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
@@ -31,14 +18,10 @@ from utils import (
 # for them. Filtered against what's actually present at render time.
 _CATEGORICAL_CANDIDATES = ["leiden", "cell_type", "Group", "SampleID"]
 
-# Above this many cells, WebGL hover/lasso/recolor start to feel sluggish and
-# browser memory balloons. Past it the explorer shows a random sample of this
-# size (the static publication figures below still use every cell). Selection
-# maps back to true cell indices via the row ids carried in customdata.
+# Above this, the explorer samples down to this size (static figures still use every cell).
 _DISPLAY_CAP = 100_000
 
-# A restrained continuous scale for marker expression: light warm grey -> the
-# app's signature red (#ff4b4b). Reads clearly on the locked light theme.
+# Continuous marker-expression scale: light warm grey -> signature red.
 _MARKER_SCALE = [
     [0.0, "#e9e4e0"],
     [0.5, "#ff9e8f"],
@@ -47,11 +30,7 @@ _MARKER_SCALE = [
 
 
 def _category_colors(categories, cmap_name):
-    """Map category labels -> hex colours using a matplotlib colormap.
-
-    Mirrors ``get_palette`` in Visualization.py so the interactive view and the
-    static UMAP downloads share the same colours.
-    """
+    """Map category labels -> hex colours via a matplotlib colormap (mirrors Visualization.get_palette)."""
     cmap = plt.get_cmap(cmap_name)
     listed = getattr(cmap, "colors", None)
     n = len(categories)
@@ -79,9 +58,7 @@ def _base_layout(height):
             borderwidth=0,
             font=dict(size=11),
         ),
-        # Preserve pan/zoom across recolours (each recolour is a fresh figure
-        # after Streamlit reruns). Keeping this constant tells Plotly the axes
-        # are "the same view", so it doesn't snap back to the full extent.
+        # Constant uirevision preserves pan/zoom across recolour reruns.
         uirevision="cafe-umap-explorer",
         dragmode="lasso",
     )
@@ -211,12 +188,7 @@ def _densify(X):
 
 
 def _background_stats(adata):
-    """All-cell mean & median per marker, cached for the session.
-
-    Median is computed column-by-column so a large sparse matrix is never
-    densified whole. Cached because the background doesn't change between
-    selections — only the lasso does — so we don't recompute it every rerun.
-    """
+    """All-cell mean & median per marker, cached per session (median computed column-by-column to avoid densifying)."""
     key = (adata.n_obs, adata.n_vars, tuple(map(str, adata.var_names)))
     cached = st.session_state.get("_cafe_bg_stats")
     if cached and cached["key"] == key:
@@ -231,14 +203,7 @@ def _background_stats(adata):
 
 
 def _render_marker_profile(adata, rows):
-    """Per-marker expression profile of the selected cells, for cell typing.
-
-    Three ranking modes (median is the default — robust to the bimodal, outlier
-    prone nature of flow signal), each shown against the all-cell background so
-    elevation is obvious. Every bar is annotated with the fraction of selected
-    cells that are *positive* for that marker (above the app's positivity
-    threshold), which is the read-out closest to a manual gating call.
-    """
+    """Per-marker expression profile of the selected cells vs the all-cell background, with positive-fraction annotations."""
     markers = list(adata.var_names)
     if not markers:
         return
@@ -322,11 +287,7 @@ def _render_marker_profile(adata, rows):
 
 
 def render_embedding_explorer(adata, key_prefix="umap_explorer"):
-    """Render the interactive embedding explorer for ``adata``.
-
-    Safe to call unconditionally: it no-ops (with a hint) when the UMAP hasn't
-    been computed yet. Never mutates ``adata`` and never writes files.
-    """
+    """Render the interactive embedding explorer; no-ops with a hint if no UMAP yet. Never mutates adata or writes files."""
     if "X_umap" not in adata.obsm:
         st.info("Compute a UMAP embedding first — the interactive explorer will appear here.")
         return
@@ -335,10 +296,7 @@ def render_embedding_explorer(adata, key_prefix="umap_explorer"):
     cluster_col = get_cluster_col(adata)
     n_total = adata.n_obs
 
-    # Downsample the *view* past the cap so interaction stays fluid. row_ids are
-    # the original adata positions, carried into customdata so lasso selection
-    # still reports true cells. Seeded (RANDOM_STATE) so the view is stable
-    # across reruns; sorted so hover order tracks the data.
+    # Downsample the view past the cap (seeded); row_ids map back to true cells via customdata.
     if n_total > _DISPLAY_CAP:
         rng = np.random.default_rng(RANDOM_STATE)
         row_ids = np.sort(rng.choice(n_total, _DISPLAY_CAP, replace=False))

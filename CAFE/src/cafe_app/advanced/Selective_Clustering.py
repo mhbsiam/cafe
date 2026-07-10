@@ -176,7 +176,7 @@ def compute_umap_leiden(adata):
                 random_state=random_state
             )
 
-            cluster_sample_counts = adata.obs.groupby(['leiden', 'SampleID']).size().unstack(fill_value=0)
+            cluster_sample_counts = adata.obs.groupby(['leiden', 'SampleID'], observed=False).size().unstack(fill_value=0)
 
             sample_totals = cluster_sample_counts.sum()
             cluster_sample_percentages = cluster_sample_counts.div(sample_totals) * 100
@@ -184,7 +184,7 @@ def compute_umap_leiden(adata):
             median_df = adata.to_df()
             median_df['leiden'] = adata.obs['leiden']
             median_df['SampleID'] = adata.obs['SampleID']
-            medians = median_df.groupby(['leiden', 'SampleID']).median()
+            medians = median_df.groupby(['leiden', 'SampleID'], observed=False).median()
 
             def create_zip_with_outputs(selected_files):
                 zip_buffer = io.BytesIO()
@@ -334,6 +334,13 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
                 st.warning("Please upload CSV files to proceed.")
             else:
                 df = process_csv_files(uploaded_files)
+
+                if df is None:
+                    st.error(
+                        "No valid CSV files could be processed. Check that filenames follow "
+                        "'sampleID_group.csv' and that columns match across files."
+                    )
+                    st.stop()
 
                 if option == 'Subset by removing markers':
                     all_columns = df.columns.tolist()

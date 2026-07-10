@@ -50,11 +50,7 @@ def _build_format_string(groups: list[dict]) -> str:
 
 
 def _render_inventory_split(cluster_ids: list[str], claimed: set[str]) -> None:
-    """Render a two-tier chip bar: remaining (teal) vs assigned (struck-through).
-
-    Also shows a plain-language note explaining that unassigned clusters are
-    passed through to the output with their original Leiden numbers intact.
-    """
+    """Render a two-tier chip bar: remaining (teal) vs assigned (struck-through)."""
     remaining = [c for c in cluster_ids if c not in claimed]
     assigned  = [c for c in cluster_ids if c in claimed]
 
@@ -193,12 +189,7 @@ def _validate_merge_groups(groups: list[dict], cluster_ids: list[str]) -> list[s
 
 
 def _reset_merge_builder() -> None:
-    """Reset the builder to one empty row and drop its persisted widget state.
-
-    Streamlit keeps keyed-widget values (merge_target_*/merge_sources_*) in
-    session_state independently of `merge_groups`. Clearing them here prevents a
-    removed/finalized group's values from resurfacing in a later row.
-    """
+    """Reset the builder to one empty row and drop persisted merge_target_*/merge_sources_* widget state."""
     st.session_state.merge_groups = [{"target": "", "sources": []}]
     stale = [
         k for k in list(st.session_state.keys())
@@ -222,6 +213,8 @@ if uploaded_file and submit_upload:
         st.session_state.pop("merge_result", None)
     if 'X_umap' not in st.session_state.adata.obsm.keys():
         with st.spinner("Computing UMAP (not found in file)…"):
+            if 'neighbors' not in st.session_state.adata.uns:
+                sc.pp.neighbors(st.session_state.adata)
             sc.tl.umap(st.session_state.adata)
     n_cells, n_markers = st.session_state.adata.shape
     n_clusters = len(_cluster_ids(st.session_state.adata))
@@ -255,12 +248,8 @@ if st.session_state.adata is not None:
     with col_builder:
         section_header("Merge groups", "Define which clusters to combine. Each group gets a new name.")
 
-        # Render merge rows. Options stay fixed to the full cluster list so a
-        # keyed widget never holds a value that has dropped out of its options
-        # (which Streamlit would silently discard). A cluster assigned to two
-        # groups is caught by _validate_merge_groups below, which blocks Finalize.
-        # The widget keys are the single source of truth; merge_groups is just a
-        # per-run mirror rebuilt from the returned values.
+        # Options stay the full cluster list so keyed widgets never hold a dropped
+        # value. Widget keys are the source of truth; merge_groups mirrors them.
         n_rows = len(st.session_state.merge_groups)
         updated_groups = []
 
@@ -376,9 +365,7 @@ if st.session_state.adata is not None:
                     zf.write(log_tmp_path, arcname=f"merge_log_{random_number}.txt")
                     os.unlink(log_tmp_path)
 
-            # Persist the result so the download button survives later reruns
-            # (e.g. the rerun the download click itself triggers), then reset the
-            # builder for the now-merged cluster set.
+            # Persist the result so the download button survives later reruns, then reset the builder.
             st.session_state["merge_result"] = {
                 "zip": zip_buffer.getvalue(),
                 "filename": f"merged_data_{random_number}.zip",

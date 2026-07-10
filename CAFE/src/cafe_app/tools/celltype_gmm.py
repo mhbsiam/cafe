@@ -1,34 +1,4 @@
-"""Probabilistic marker-based cell-type annotation via per-marker Gaussian mixtures.
-
-FlowJo-scaled expression values place each marker's negative and positive
-populations as two roughly-Gaussian humps.  Fitting a 2-component Gaussian
-Mixture Model per marker recovers the pos/neg gate and yields, for every cell,
-the posterior probability of belonging to the positive component.  That
-posterior doubles as a per-marker confidence.
-
-Gating strategy (per marker):
-    1. Fit a **pooled** GMM across all cells — stabilises minority-positive
-       markers (e.g. CD8a within all leukocytes) whose positive shoulder is too
-       small to fit reliably in a single sample.
-    2. For each sample, prefer a **per-sample** fit (absorbs intensity drift)
-       when it is genuinely bimodal, otherwise fall back to the pooled gate,
-       and only neutralise the marker (posterior 0.5) when it is unimodal even
-       pooled.  This graceful degradation stops a hard-to-fit marker from being
-       silently discarded.
-
-A fit is considered bimodal ("informative") only when a 2-component fit beats a
-1-component fit by BIC, *and* both components carry a non-trivial weight, *and*
-their means are separated (Cohen's d over the average component SD).  The
-average-SD denominator avoids the failure of a pooled-variance metric, which is
-inflated by a broad positive shoulder and under-reports real separation.
-
-These functions are deliberately Streamlit-free so they can be unit tested.
-
-Pipeline:
-    posteriors, diag = compute_positive_posteriors(adata)
-    scores           = score_cell_types(posteriors, definitions)
-    calls            = assign_cell_types(scores)
-"""
+"""Probabilistic cell-type annotation: per-marker 2-component GMMs give positive-posterior confidences, scored against type definitions. Streamlit-free."""
 import numpy as np
 import pandas as pd
 from scipy.sparse import issparse
@@ -55,28 +25,7 @@ def _cutoff_from_proba(x, proba):
 
 
 def fit_marker_gmm(values, random_state=0, max_fit=50000):
-    """Fit a 2-component GMM to one marker; return posteriors, info, and model.
-
-    Parameters
-    ----------
-    values : array-like or sparse column
-        Expression values for a single marker (one entry per cell).
-    random_state : int
-        Seed for GMM initialisation and fit subsampling (reproducibility).
-    max_fit : int
-        Cap on the number of cells used to *fit* the mixture.  All cells are
-        still scored via ``predict_proba``.
-
-    Returns
-    -------
-    pos_posterior : np.ndarray, shape (n,)
-        Probability each cell belongs to the positive (higher-mean) component.
-    info : dict
-        ``cutoff``, ``means`` (neg, pos), ``weights`` (neg, pos),
-        ``separation`` (Cohen's d), ``informative`` (bool) and ``model`` — a
-        reusable ``{"gmm", "pos"}`` bundle (``None`` for a degenerate fit) so a
-        pooled fit can be applied to individual samples.
-    """
+    """Fit a 2-component GMM to one marker; return positive posteriors and an info dict (cutoff, means, weights, separation, informative, model)."""
     x = _as_1d(values)
     n = x.size
     degenerate = {
@@ -135,21 +84,7 @@ def _score_with_model(values, model):
 
 def compute_positive_posteriors(adata, sample_key="SampleID", random_state=0,
                                 max_fit=50000, progress=None):
-    """Per-sample, per-marker positive posteriors for every cell.
-
-    For each marker a pooled GMM is fit first; each sample then uses its own fit
-    when bimodal, the pooled fit as a fallback, and 0.5 only when the marker is
-    unimodal even pooled.
-
-    Returns
-    -------
-    posteriors : pd.DataFrame, shape (n_cells, n_markers)
-        Indexed like ``adata.obs_names``, columns are ``adata.var_names``.
-    diagnostics : pd.DataFrame
-        One row per (SampleID, marker) with ``cutoff`` (of the gate actually
-        used), per-sample ``separation`` / ``informative``, and ``source`` in
-        {``per-sample``, ``pooled``, ``neutral``}.
-    """
+    """Per-sample, per-marker positive posteriors (per-sample fit when bimodal, else pooled, else 0.5); returns (posteriors, diagnostics)."""
     markers = list(adata.var_names)
     obs_names = adata.obs_names.astype(str)
     posteriors = pd.DataFrame(0.5, index=obs_names, columns=markers, dtype=float)
@@ -221,24 +156,7 @@ def compute_positive_posteriors(adata, sample_key="SampleID", random_state=0,
 
 
 def score_cell_types(posteriors, definitions):
-    """Geometric-mean match score for each cell type.
-
-    Parameters
-    ----------
-    posteriors : pd.DataFrame
-        Output of :func:`compute_positive_posteriors`.
-    definitions : dict[str, dict[str, str]]
-        ``{cell_type: {marker: "+"|"-"}}``.  Markers absent from a type's dict
-        (or with a blank state) are ignored for that type.
-
-    Returns
-    -------
-    scores : pd.DataFrame, shape (n_cells, n_types)
-        Geometric mean of per-marker match probabilities.  The geometric mean
-        normalises across types defined by different numbers of markers (unlike
-        a raw product).  Types with no usable markers are skipped; if none
-        remain the frame is empty.
-    """
+    """Per-cell geometric-mean match score for each type in definitions ({type: {marker: "+"|"-"}})."""
     eps = 1e-9
     scores = {}
     for cell_type, marker_states in definitions.items():
@@ -258,25 +176,7 @@ def score_cell_types(posteriors, definitions):
 
 
 def assign_cell_types(scores, min_score=0.5, high_margin=0.5, low_margin=0.15):
-    """Assign each cell to its best-scoring type with a confidence level.
-
-    Parameters
-    ----------
-    scores : pd.DataFrame
-        Output of :func:`score_cell_types`.
-    min_score : float
-        Cells whose best raw score is below this match no type well and become
-        ``"Unassigned"`` / ``Ambiguous``.
-    high_margin, low_margin : float
-        Thresholds on the margin between the best and runner-up type
-        (measured on scores normalised to pseudo-probabilities).
-
-    Returns
-    -------
-    calls : pd.DataFrame
-        Columns ``cell_type``, ``best_score``, ``confidence_score`` (margin),
-        ``confidence_level`` in {``High``, ``Low``, ``Ambiguous``}.
-    """
+    """Assign each cell to its best-scoring type; returns cell_type, best_score, confidence_score (margin), confidence_level."""
     index = scores.index
     n = len(index)
     if scores.shape[1] == 0:
@@ -320,11 +220,7 @@ def assign_cell_types(scores, min_score=0.5, high_margin=0.5, low_margin=0.15):
 
 
 def _otsu_threshold(values, bins=256):
-    """Otsu's method: the value that best splits a distribution into two modes.
-
-    Returns the split point, or ``None`` when the data is degenerate (constant /
-    too few points / no between-class separation).
-    """
+    """Otsu split point between two modes, or None for degenerate data."""
     v = np.asarray(values, dtype=float)
     v = v[np.isfinite(v)]
     if v.size < 8 or np.ptp(v) < 1e-9:
@@ -350,19 +246,7 @@ def _otsu_threshold(values, bins=256):
 
 
 def suggest_thresholds(scores):
-    """Data-driven confidence thresholds from the score / margin distributions.
-
-    ``min_score`` is placed at the valley of the per-cell best-score distribution
-    (never below the coin-flip level 0.5, since a fully-neutral cell scores 0.5).
-    The margin thresholds are placed at valleys of the best-vs-runner-up margin
-    distribution.  Everything is clamped to sane ranges and falls back to fixed
-    defaults when a distribution is unimodal.  With a single defined type there
-    is no runner-up, so the margins are set to 0 (every matched cell is High).
-
-    Returns
-    -------
-    dict with keys ``min_score``, ``high_margin``, ``low_margin``.
-    """
+    """Data-driven {min_score, high_margin, low_margin} from Otsu valleys of the score/margin distributions, clamped with defaults."""
     defaults = {"min_score": 0.5, "high_margin": 0.5, "low_margin": 0.15}
     if scores.shape[1] == 0:
         return dict(defaults)

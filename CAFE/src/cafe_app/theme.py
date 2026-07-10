@@ -1,18 +1,10 @@
-"""Shared design tokens, global CSS, and UI helpers for CAFE.
-
-All visual polish lives here so every page can import and apply the same
-language. The design is intentionally restrained: warm tinted neutrals with a
-teal primary accent (#0f5070), Source Sans 3 typography, and motion gated behind
-``prefers-reduced-motion``.
-"""
+"""Shared design tokens, global CSS, and UI helpers for CAFE (teal accent, Source Sans 3, reduced-motion aware)."""
 import os
 from dataclasses import dataclass
 
 import streamlit as st
 
-# Absolute path to the bundled image assets. Resolved relative to this file so
-# it works no matter what the current working directory is — the app can be
-# launched from anywhere once installed as the ``cafe`` command.
+# Bundled image assets, resolved relative to this file (cwd-independent).
 IMG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
 
 
@@ -20,9 +12,7 @@ IMG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
 class Tokens:
     """Single source of truth for CAFE design tokens."""
 
-    # -------------------------------------------------------------------------
     # Color
-    # -------------------------------------------------------------------------
     primary: str = "#0f5070"
     primary_hover: str = "#0a3d57"
     primary_light: str = "#e6f1f4"
@@ -39,14 +29,10 @@ class Tokens:
     error: str = "#c1121f"
     white: str = "#ffffff"
 
-    # -------------------------------------------------------------------------
     # Typography
-    # -------------------------------------------------------------------------
     font: str = '"Source Sans 3", "Source Sans Pro", sans-serif'
 
-    # -------------------------------------------------------------------------
     # Spacing (base 4px grid)
-    # -------------------------------------------------------------------------
     space_xs: str = "4px"
     space_sm: str = "8px"
     space_md: str = "16px"
@@ -55,9 +41,7 @@ class Tokens:
     space_2xl: str = "48px"
     space_3xl: str = "64px"
 
-    # -------------------------------------------------------------------------
     # Motion
-    # -------------------------------------------------------------------------
     expo: str = "cubic-bezier(0.16, 1, 0.3, 1)"
     duration_micro: str = "0.18s"
     duration_fade: str = "0.35s"
@@ -71,9 +55,7 @@ TOKENS = Tokens()
 
 _EXPO = TOKENS.expo
 
-# -----------------------------------------------------------------------------
 # CSS variables + font import
-# -----------------------------------------------------------------------------
 _CSS_VARIABLES = f"""
 <style>
 @import url('https://fonts.bunny.net/css?family=source-sans-3:400,600,700&display=swap');
@@ -113,9 +95,7 @@ _CSS_VARIABLES = f"""
 </style>
 """
 
-# -----------------------------------------------------------------------------
 # Global typography override
-# -----------------------------------------------------------------------------
 _BASE_CSS = f"""
 <style>
 html, body, [data-testid="stApp"] {{
@@ -161,9 +141,7 @@ button[data-testid*="stBaseButton"] div {{
 </style>
 """
 
-# -----------------------------------------------------------------------------
 # Premium micro-interactions
-# -----------------------------------------------------------------------------
 _PREMIUM_CSS = f"""
 <style>
 /* Lock the app to its configured light theme: every chart is a static
@@ -306,9 +284,7 @@ _PREMIUM_CSS = f"""
 </style>
 """
 
-# -----------------------------------------------------------------------------
 # Landing-page entrance (one-shot per session)
-# -----------------------------------------------------------------------------
 _HERO_CSS = f"""
 <style>
 @media (prefers-reduced-motion: no-preference) {{
@@ -319,9 +295,7 @@ _HERO_CSS = f"""
 </style>
 """
 
-# -----------------------------------------------------------------------------
 # Landing-page ambience (dot field + scroll reveals)
-# -----------------------------------------------------------------------------
 _LANDING_CSS = f"""
 <style>
 [data-testid="stApp"]::before {{
@@ -365,9 +339,7 @@ _LANDING_CSS = f"""
 </style>
 """
 
-# -----------------------------------------------------------------------------
 # Stepper CSS (used by Data Processing wizard)
-# -----------------------------------------------------------------------------
 _STEPPER_CSS = """
 <style>
 .cafe-stepper {
@@ -427,9 +399,7 @@ _STEPPER_CSS = """
 </style>
 """
 
-# -----------------------------------------------------------------------------
 # Info-card / section helpers
-# -----------------------------------------------------------------------------
 _INFO_CARD_CSS = """
 <style>
 .cafe-info-card {
@@ -476,9 +446,7 @@ _INFO_CARD_CSS = """
 """
 
 
-# -----------------------------------------------------------------------------
 # Merge-builder CSS (used by Merge Clusters page)
-# -----------------------------------------------------------------------------
 _MERGE_BUILDER_CSS = """
 <style>
 /* ── Cluster chip ─────────────────────────────────────────────────────────── */
@@ -618,9 +586,7 @@ _MERGE_BUILDER_CSS = """
 """
 
 
-# -----------------------------------------------------------------------------
 # Public API: injection functions
-# -----------------------------------------------------------------------------
 def apply_theme():
     """Inject the global design system and micro-interaction layer."""
     st.markdown(_CSS_VARIABLES, unsafe_allow_html=True)
@@ -632,31 +598,19 @@ def apply_theme():
 
 
 def landing_ambient():
-    """Inject the welcome-page-only backdrop + scroll reveals.
-
-    Injected on every landing render (unlike the one-shot entrance) so the
-    scroll-driven reveals work whenever the user is on the welcome page. Safe
-    to omit: without it the page is simply static.
-    """
+    """Inject the welcome-page backdrop + scroll reveals (safe to omit; page is then static)."""
     st.markdown(_LANDING_CSS, unsafe_allow_html=True)
 
 
 def hero_entrance():
-    """Play the landing-page entrance a single time per session.
-
-    Streamlit reruns the whole script on every widget interaction, so an
-    unconditional entrance animation would replay constantly. Guarding on
-    session state keeps it to the one moment it belongs: first arrival.
-    """
+    """Play the landing-page entrance once per session (guarded so reruns don't replay it)."""
     if st.session_state.get("_cafe_hero_shown"):
         return
     st.session_state["_cafe_hero_shown"] = True
     st.markdown(_HERO_CSS, unsafe_allow_html=True)
 
 
-# -----------------------------------------------------------------------------
 # Public API: component helpers
-# -----------------------------------------------------------------------------
 def page_header(title: str, subtitle: str | None = None):
     """Render a consistent page header with optional subtitle."""
     st.title(title)
@@ -693,17 +647,7 @@ def info_card(title: str, body: str, kind: str = "info"):
 
 
 def stepper(steps: list[str], current_index: int, done_indices: set[int] | None = None):
-    """Render a horizontal stepper for wizard-style pages.
-
-    Parameters
-    ----------
-    steps : list[str]
-        Step labels in order.
-    current_index : int
-        Zero-based index of the current active step.
-    done_indices : set[int] | None
-        Set of completed step indices.
-    """
+    """Render a horizontal wizard stepper (current_index active, done_indices ticked)."""
     done_indices = done_indices or set()
     items = []
     for i, label in enumerate(steps):
@@ -729,18 +673,7 @@ def stepper(steps: list[str], current_index: int, done_indices: set[int] | None 
 
 
 def loading_status(title: str, steps: list[str], current_index: int | None = None):
-    """Render a labeled progress block for long computations.
-
-    Parameters
-    ----------
-    title : str
-        Overall operation title.
-    steps : list[str]
-        Human-readable step labels.
-    current_index : int | None
-        Zero-based index of the currently running step. If None, no step is
-        highlighted.
-    """
+    """Render a labeled progress block; current_index highlights the running step, None shows just the title."""
     if current_index is None:
         st.markdown(f"**{title}**")
         return

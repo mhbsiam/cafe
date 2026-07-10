@@ -1,9 +1,4 @@
-"""Shared utilities for CAFE.
-
-Centralises repeated patterns so that every page and module uses the same
-sparse-matrix handling, cluster-column resolution, and CSV-to-AnnData
-conversion logic.
-"""
+"""Shared CAFE utilities: sparse-matrix handling, cluster-column resolution, CSV-to-AnnData conversion."""
 import os
 import time
 from dataclasses import dataclass
@@ -16,63 +11,39 @@ import anndata as ad
 import pyarrow as pa
 import pyarrow.csv as pv
 from scipy.sparse import issparse
-from scipy.stats import mannwhitneyu, kruskal
+from scipy.stats import mannwhitneyu, kruskal, wasserstein_distance, median_abs_deviation
 from statsmodels.stats.multitest import multipletests
 
 import streamlit as st
 
-# ---------------------------------------------------------------------------
-# Named constants (replaces magic numbers scattered across the codebase)
-# ---------------------------------------------------------------------------
+# Named constants
 RANDOM_STATE = 50
 MARKER_HIGH_THRESHOLD = 1000   # expression above this -> marker annotated with "+"
 MARKER_LOW_THRESHOLD = 0       # expression below this -> marker annotated with "-"
 
-# ---------------------------------------------------------------------------
-# Cluster-column resolution
-# ---------------------------------------------------------------------------
+
 def get_cluster_col(adata):
-    """Return ``'cell_type'`` if present in ``adata.obs``, else ``'leiden'``."""
+    """Return 'cell_type' if present in adata.obs, else 'leiden'."""
     return 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
 
 
-# ---------------------------------------------------------------------------
-# Sparse / dense safe helpers (B7 / B8)
-# ---------------------------------------------------------------------------
 def safe_flatten(X):
-    """Return a 1-D ``np.ndarray`` from either a sparse or dense matrix.
-
-    ``.X.flatten()`` on a sparse matrix returns a ``np.matrix`` with wrong
-    semantics (includes explicit zeros).  ``.X.toarray()`` on a dense matrix
-    raises ``AttributeError``.  This helper handles both cases.
-    """
+    """1-D array from a sparse or dense matrix (densifies sparse to drop explicit zeros)."""
     if issparse(X):
         return np.asarray(X.toarray()).flatten()
     return np.asarray(X).flatten()
 
 
 def safe_expression(X, method='Mean'):
-    """Compute mean or median expression, working for sparse **and** dense.
-
-    On a sparse matrix ``X.mean()`` returns a 1x1 ``np.matrix`` and
-    ``np.median(X)`` operates on the raw sparse data (including explicit
-    zeros), both of which are wrong.  This densifies first.
-    """
+    """Mean or median expression, densifying sparse input first."""
     flat = safe_flatten(X)
     if method == 'Median':
         return float(np.median(flat))
     return float(np.mean(flat))
 
 
-# ---------------------------------------------------------------------------
-# Cluster-label sorting (B9)
-# ---------------------------------------------------------------------------
 def safe_sort_clusters(labels):
-    """Sort cluster labels, using ``key=int`` only when all labels are integers.
-
-    Falls back to natural (string) sort when labels are non-integer (e.g.
-    after cluster merging or cell-type annotation).
-    """
+    """Sort cluster labels by int when all are integers, else by string."""
     labels = list(labels)
     try:
         return sorted(labels, key=int)
@@ -80,15 +51,9 @@ def safe_sort_clusters(labels):
         return sorted(labels, key=str)
 
 
-# ---------------------------------------------------------------------------
-# CSV -> AnnData conversion (A4 — replaces 6 copy-pasted implementations)
-# ---------------------------------------------------------------------------
+# CSV -> AnnData conversion
 def _process_single_table(table, file_name):
-    """Process one Arrow table: cast types, fix duplicate SampleID/Group (B11),
-    append SampleID/Group from filename, drop 'sample' columns.
-
-    Returns the processed Arrow table or ``None`` if the filename is invalid.
-    """
+    """Cast types, replace SampleID/Group from filename, drop 'sample' cols; (table, None) or (None, msg)."""
     # Cast integer columns to float64
     numeric_columns = [col for col in table.column_names
                        if pa.types.is_integer(table.schema.field(col).type)]
@@ -149,11 +114,7 @@ def _tables_to_anndata(tables):
 
 
 def process_uploaded_csv_files(uploaded_files):
-    """Process Streamlit-uploaded CSV files into a single AnnData.
-
-    Used by Data_Processing.py and Selective_Clustering.py.
-    Shows a progress bar and validates column consistency across files.
-    """
+    """Streamlit-uploaded CSVs into one AnnData, with a progress bar and column-consistency checks."""
     start_time = time.time()
     tables = []
     reference_columns = None
@@ -206,37 +167,20 @@ def process_uploaded_csv_files(uploaded_files):
 
 
 def inspect_uploaded_csv_files(uploaded_files):
-    """Inspect uploaded CSVs *without* building an AnnData.
-
-    Returns a diagnostics dict for the upload-review UI: per-file SampleID/Group,
-    cell counts, and marker lists, plus marker-name mismatches across files
-    (case-sensitive) and any filenames that break the ``SampleID_Group`` naming
-    convention.  Streamlit-free so it can be unit tested.
-
-    Structure::
-
-        {
-          "files": [{"file", "SampleID", "Group", "n_cells", "markers", "name_ok"}],
-          "all_markers":    sorted union of markers across files,
-          "common_markers": sorted intersection of markers across files,
-          "mismatches":     [{"file", "missing": [...]}],  # only offending files
-          "bad_names":      [filenames not matching SampleID_Group.csv],
-        }
-    """
+    """Diagnostics dict for the upload-review UI (per-file info, marker mismatches, bad names); builds no AnnData."""
     files = []
     marker_sets = {}
     for uploaded_file in uploaded_files:
         try:
             table = pv.read_csv(uploaded_file)
         finally:
-            # rewind so the same buffer can be re-read when AnnData is built
+            # Rewind (best-effort) so the buffer can be re-read when AnnData is built.
             try:
                 uploaded_file.seek(0)
-            except Exception:
+            except (AttributeError, OSError, ValueError):
                 pass
 
-        # Markers = columns that are neither the metadata columns nor a stray
-        # 'sample' column (matches what _process_single_table would keep).
+        # Markers: columns that aren't metadata or a stray 'sample' column.
         markers = [
             c for c in table.column_names
             if c not in ("SampleID", "Group") and c.lower() != "sample"
@@ -262,8 +206,7 @@ def inspect_uploaded_csv_files(uploaded_files):
     union = set().union(*sets) if sets else set()
     common = set.intersection(*sets) if sets else set()
 
-    # A file is flagged when it lacks any marker present in another file — this
-    # catches case and spelling differences (e.g. 'CD8' vs 'cd8').
+    # Flag a file that lacks any marker present in another (catches case/spelling diffs).
     mismatches = [
         {"file": name, "missing": sorted(union - s)}
         for name, s in marker_sets.items()
@@ -281,12 +224,7 @@ def inspect_uploaded_csv_files(uploaded_files):
 
 
 def process_uploaded_csv_to_df(uploaded_files):
-    """Process Streamlit-uploaded CSV files into a single pandas DataFrame.
-
-    Like :func:`process_uploaded_csv_files` but returns the raw DataFrame
-    (with SampleID/Group columns) instead of an AnnData.  Used by
-    Selective_Clustering.py which needs the DataFrame for marker subsetting.
-    """
+    """Like process_uploaded_csv_files but returns the raw DataFrame (with SampleID/Group) instead of AnnData."""
     tables = []
     reference_columns = None
 
@@ -339,11 +277,7 @@ def process_uploaded_csv_to_df(uploaded_files):
 
 
 def process_directory_csv_files(input_dir):
-    """Process CSV files from a filesystem directory into a single AnnData.
-
-    Used by Cluster_Evaluation.py and hpc.py.
-    Returns ``None`` if no valid CSV files are found.
-    """
+    """CSV files from a directory into one AnnData; None if no valid CSVs are found."""
     start_time = time.time()
     tables = []
 
@@ -372,29 +306,9 @@ def process_directory_csv_files(input_dir):
     return adata
 
 
-# ---------------------------------------------------------------------------
-# Batch correction (ComBat) — guarded against confounding with biology
-# ---------------------------------------------------------------------------
+# Batch correction (ComBat), guarded against confounding with biology.
 def run_combat_correction(adata, batch_key='Batch', covariates=('Group',)):
-    """Run ComBat keyed on a technical batch without destroying biological signal.
-
-    ComBat centers each ``batch_key`` level to a common mean.  Keying it on the
-    biological condition (``Group``) would remove the very signal downstream
-    comparisons test, so this helper requires a dedicated technical ``Batch``
-    column and *refuses* when that batch is confounded with any of ``covariates``
-    (i.e. every batch lies entirely within a single covariate level).  When the
-    batch is genuinely crossed with the biological groups, centering the batches
-    leaves the between-group differences intact.
-
-    Note: scanpy's ``covariates=`` argument builds a rank-deficient design for a
-    categorical covariate (batch and covariate one-hots are collinear), so it is
-    not passed through here; ``covariates`` is used only for the confounding
-    guard.
-
-    Returns ``(ok, message)``.  ``adata`` is only mutated when ``ok`` is True.
-    Correction is refused (``ok=False``) when the batch column is missing, has
-    unassigned cells, has fewer than two levels, or is confounded.
-    """
+    """ComBat on a technical Batch; refuses (ok=False) if missing/unassigned/single-level/confounded. Returns (ok, msg)."""
     if batch_key not in adata.obs.columns:
         return False, f"Batch column '{batch_key}' not found; assign batches first."
 
@@ -408,8 +322,7 @@ def run_combat_correction(adata, batch_key='Batch', covariates=('Group',)):
     if n_batches < 2:
         return False, "Only one batch level; nothing to correct."
 
-    # Confounding guard: a batch nested entirely within one covariate level means
-    # ComBat cannot separate technical from biological variation.
+    # Confounding guard: a batch nested within one covariate level is uncorrectable.
     for cov in covariates:
         if cov not in adata.obs.columns:
             continue
@@ -432,30 +345,173 @@ def run_combat_correction(adata, batch_key='Batch', covariates=('Group',)):
     )
 
 
-# ---------------------------------------------------------------------------
-# Differential abundance testing (fixes the pseudoreplicated per-cell χ²)
-# ---------------------------------------------------------------------------
-# The old tab34 test ran chi2_contingency on a per-*cell* contingency table.
-# With hundreds of thousands of cells the χ² statistic is enormous and p≈0 for
-# essentially any dataset (pseudoreplication — the unit of analysis must be the
-# *sample*, not the cell).  These helpers instead aggregate cells to per-sample
-# cluster proportions and compare those proportions across groups, which is the
-# statistically correct unit for compositional/abundance testing.
+# QC: data-driven MAD threshold recommendation.
+def recommend_nmads(values, cap_pct=5.0, use_lower=True, use_upper=True,
+                    grid=None):
+    """Smallest n_MADs on grid keeping each active tail <= cap_pct; grid.max() if none, None if degenerate."""
+    if grid is None:
+        grid = np.arange(2.0, 8.0001, 0.5)
+    grid = np.asarray(grid, dtype=float)
+
+    vals = np.asarray(values, dtype=float)
+    n = vals.shape[0]
+    if n == 0:
+        return None
+    med = np.median(vals)
+    mad = median_abs_deviation(vals)
+    if mad == 0 or np.isnan(mad):
+        return None
+
+    def tails_ok(nm):
+        if use_lower:
+            low_pct = np.count_nonzero(vals < med - nm * mad) / n * 100.0
+            if low_pct > cap_pct:
+                return False
+        if use_upper:
+            high_pct = np.count_nonzero(vals > med + nm * mad) / n * 100.0
+            if high_pct > cap_pct:
+                return False
+        return True
+
+    for nm in np.sort(grid):
+        if tails_ok(nm):
+            return float(nm)
+    return float(np.max(grid))
+
+
+# Batch effect diagnostics: per-marker EMD (1-D Wasserstein) of each batch vs pooled, via scipy.
+def _robust_scale(col):
+    """Robust per-marker scale (normalised MAD in SD units), falling back to SD then 1.0."""
+    scale = median_abs_deviation(col, scale="normal")
+    if scale == 0 or np.isnan(scale):
+        scale = np.std(col)
+    if scale == 0 or np.isnan(scale):
+        scale = 1.0
+    return scale
+
+
+def marker_robust_scales(adata):
+    """Per-marker robust scales as a 1-D array; compute before correction and reuse for before/after EMD."""
+    X = adata.X
+    if issparse(X):
+        X = X.toarray()
+    X = np.asarray(X, dtype=float)
+    return np.array([_robust_scale(X[:, j]) for j in range(X.shape[1])])
+
+
+def compute_batch_emd(
+    adata, batch_key="Batch", max_cells_per_batch=20000, seed=RANDOM_STATE, scales=None
+):
+    """Per-marker EMD (robust-scaled 1-D Wasserstein) of each batch vs pooled; returns marker/emd_max/emd_mean/worst_batch, subsampled per batch."""
+    empty = pd.DataFrame(columns=["marker", "emd_max", "emd_mean", "worst_batch"])
+    if batch_key not in adata.obs.columns:
+        return empty
+
+    batch_values = pd.Series(adata.obs[batch_key].to_numpy())
+    levels = [b for b in pd.unique(batch_values) if pd.notnull(b)]
+    if len(levels) < 2:
+        return empty
+
+    X = adata.X
+    if issparse(X):
+        X = X.toarray()
+    X = np.asarray(X, dtype=float)
+
+    rng = np.random.default_rng(seed)
+    batch_idx = {}
+    for b in levels:
+        idx = np.where(batch_values.to_numpy() == b)[0]
+        if idx.shape[0] > max_cells_per_batch:
+            idx = rng.choice(idx, size=max_cells_per_batch, replace=False)
+        batch_idx[b] = idx
+    ref_idx = np.concatenate([batch_idx[b] for b in levels])
+
+    rows = []
+    for j, marker in enumerate(adata.var_names):
+        col = X[:, j]
+        scale = _robust_scale(col) if scales is None else scales[j]
+        scaled = col / scale
+        pooled_ref = scaled[ref_idx]
+        dists = np.array(
+            [wasserstein_distance(scaled[batch_idx[b]], pooled_ref) for b in levels]
+        )
+        rows.append(
+            {
+                "marker": str(marker),
+                "emd_max": float(dists.max()),
+                "emd_mean": float(dists.mean()),
+                "worst_batch": str(levels[int(dists.argmax())]),
+            }
+        )
+
+    return (
+        pd.DataFrame(rows)
+        .sort_values("emd_max", ascending=False)
+        .reset_index(drop=True)
+    )
+
+
+def summarize_batch_effect(emd_df, adata, batch_key="Batch", covariates=("Group",), flag=0.5):
+    """EMD table -> (verdict, info_card kind, n_flagged markers over `flag`, confounded covariates)."""
+    confounded = []
+    for cov in covariates:
+        if cov not in adata.obs.columns:
+            continue
+        if adata.obs[cov].nunique() < 2:
+            continue
+        crosstab = pd.crosstab(adata.obs[batch_key], adata.obs[cov])
+        batches_spanning = (crosstab > 0).sum(axis=1)
+        if (batches_spanning <= 1).all():
+            confounded.append(cov)
+
+    if emd_df is None or emd_df.empty:
+        return (
+            "Need at least two assigned batches to check for batch effects.",
+            "info",
+            0,
+            confounded,
+        )
+
+    n_markers = len(emd_df)
+    n_flagged = int((emd_df["emd_max"] > flag).sum())
+    top = emd_df.iloc[0]
+
+    if n_flagged == 0:
+        verdict = (
+            f"Batches look well mixed. No marker exceeds an EMD of {flag:g} "
+            f"(largest: {top['marker']} at {top['emd_max']:.2f}). Batch correction "
+            "may be unnecessary and could remove real signal."
+        )
+        kind = "success"
+    else:
+        verdict = (
+            f"{n_flagged} of {n_markers} markers show substantial batch separation "
+            f"(EMD above {flag:g}). The strongest is {top['marker']}, shifted most in "
+            f"batch {top['worst_batch']} (EMD {top['emd_max']:.2f}). Batch correction "
+            "is likely warranted."
+        )
+        kind = "warning"
+
+    if confounded:
+        verdict += (
+            " Note: batch is confounded with "
+            + ", ".join(confounded)
+            + ", so some of this separation may reflect biology rather than a "
+            "technical effect. Correcting it could remove the differences you are "
+            "testing for."
+        )
+        kind = "warning"
+
+    return verdict, kind, n_flagged, confounded
+
+
+# Differential abundance testing: aggregate to per-sample proportions (the correct unit, not per-cell).
 def compute_sample_proportions(adata, cluster_col):
-    """Aggregate cells to a per-sample cluster-proportion matrix.
-
-    Returns ``(prop_df, sample_group)`` where ``prop_df`` is indexed by
-    ``SampleID`` with one column per cluster and rows summing to 1 (each value
-    is the fraction of that sample's cells falling in that cluster), and
-    ``sample_group`` maps ``SampleID`` -> ``Group``.
-
-    Samples with zero cells in a cluster contribute a proportion of **0** (they
-    are not dropped) — dropping them would bias the downstream abundance test.
-    """
+    """Per-sample cluster-proportion matrix (rows sum to 1, zero-cell combos kept as 0) and SampleID->Group."""
     obs = adata.obs[['SampleID', 'Group', cluster_col]].copy()
     obs[cluster_col] = obs[cluster_col].astype(str)
 
-    # Per-sample x cluster cell counts; unstack fills unseen combos with 0.
+    # Per-sample x cluster counts; unstack fills unseen combos with 0.
     counts = (
         obs.groupby(['SampleID', cluster_col], observed=True)
            .size()
@@ -473,14 +529,7 @@ def compute_sample_proportions(adata, cluster_col):
 
 
 def compute_sample_frequencies_long(adata, cluster_col, as_percent=True):
-    """Long-form per-sample cluster frequency table.
-
-    Columns: SampleID, Group, <cluster_col>, frequency.
-    Built on compute_sample_proportions, so zero-cell (sample, cluster)
-    combinations are retained as 0 and the denominator is each sample's
-    total cells across all clusters.  frequency is a percentage (0-100)
-    when as_percent (default), else a fraction (0-1).
-    """
+    """Long-form frequency table (SampleID, Group, <cluster_col>, frequency); percent when as_percent, else fraction."""
     prop_df, sample_group = compute_sample_proportions(adata, cluster_col)
     if as_percent:
         prop_df = prop_df * 100
@@ -494,18 +543,7 @@ def compute_sample_frequencies_long(adata, cluster_col, as_percent=True):
 
 
 def differential_abundance_test(prop_df, sample_group, alpha=0.05, min_samples=2):
-    """Per-cluster differential abundance across groups (sample-level).
-
-    For each cluster, the per-sample proportions are compared across groups
-    with Mann-Whitney U (exactly 2 groups) or Kruskal-Wallis (>2 groups), then
-    p-values are corrected across clusters with Benjamini-Hochberg FDR.
-
-    A cluster is only tested when every group has at least ``min_samples``
-    samples with data; otherwise its p-value is ``NaN`` (and excluded from the
-    FDR correction).  Returns a DataFrame sorted by adjusted p-value with
-    columns: ``cluster``, ``mean_prop_<group>`` (one per group), ``statistic``,
-    ``p_value``, ``p_adj``, ``direction``, ``significant``.
-    """
+    """Per-cluster abundance test across groups (Mann-Whitney/Kruskal + BH-FDR); NaN when a group has < min_samples."""
     groups = sorted(sample_group.dropna().unique(), key=str)
     rows = []
     for cluster in prop_df.columns:
@@ -528,8 +566,7 @@ def differential_abundance_test(prop_df, sample_group, alpha=0.05, min_samples=2
                 else:
                     stat, p = kruskal(*group_vectors.values())
             except ValueError:
-                # e.g. all proportions identical -> test undefined
-                stat, p = np.nan, np.nan
+                stat, p = np.nan, np.nan  # e.g. all proportions identical
 
         means = {g: row[f'mean_prop_{g}'] for g in groups}
         if all(m == m for m in means.values()):  # no NaNs
@@ -551,14 +588,9 @@ def differential_abundance_test(prop_df, sample_group, alpha=0.05, min_samples=2
     return results.sort_values('p_adj', na_position='last').reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------------
-# Path validation (S1 / S2 — path traversal prevention)
-# ---------------------------------------------------------------------------
+# Path validation (traversal prevention).
 def validate_path(path, base=None):
-    """Validate that *path* resolves inside *base* (default: cwd).
-
-    Returns the absolute path if valid, otherwise raises ``ValueError``.
-    """
+    """Return abs path if it resolves inside base (default cwd), else raise ValueError."""
     if base is None:
         base = os.path.abspath(os.getcwd())
     abs_path = os.path.abspath(path)
@@ -567,12 +599,10 @@ def validate_path(path, base=None):
     return abs_path
 
 
-# ---------------------------------------------------------------------------
-# Standardised plot controls (de-duplicates ~30 repeated slider/selectbox blocks)
-# ---------------------------------------------------------------------------
+# Standardised plot controls.
 @dataclass
 class PlotSettings:
-    """Values returned by :func:`plot_controls`. Unrequested fields stay ``None``."""
+    """Values returned by plot_controls; unrequested fields stay None."""
     width: Optional[float] = None
     height: Optional[float] = None
     dot_size: Optional[float] = None
@@ -593,13 +623,7 @@ def plot_controls(
     default_cmap=None,
     file_formats=("PNG", "PDF", "SVG", "JPEG"),
 ):
-    """Render a consistent block of plot controls and return a :class:`PlotSettings`.
-
-    ``key_prefix`` must be unique per form; every widget key is derived from it.
-    ``width``/``height``/``dot_size`` are ``(min, max, default)`` tuples. Pass a
-    subset via ``include`` to omit controls a given plot does not need (e.g.
-    ``include=("width", "height")`` for a plot with no dots or colormap).
-    """
+    """Render plot controls -> PlotSettings; key_prefix must be unique, include selects which controls to show."""
     s = PlotSettings()
     unit = f" ({size_unit})" if size_unit else ""
 

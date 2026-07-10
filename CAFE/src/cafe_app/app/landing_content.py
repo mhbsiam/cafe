@@ -1,9 +1,4 @@
-"""Shared landing-page content for the desktop and hosted CAFE builds.
-
-Keeping the content in one place means the two entry points (``app/CAFE.py`` and
-``web/CAFE.py``) stay in sync. The only differences are the workflow image and
-whether the system-requirements section is shown.
-"""
+"""Shared landing-page content so the desktop (app/CAFE.py) and hosted (web/CAFE.py) entry points stay in sync."""
 import os
 
 import pandas as pd
@@ -33,18 +28,7 @@ def render_landing_page(
     how_to_title="How to Run the App",
     include_system_requirements=True,
 ):
-    """Render the CAFE welcome page.
-
-    Parameters
-    ----------
-    workflow_image : str
-        Filename (under ``bin/img/``) for the workflow diagram.
-    how_to_title : str
-        Heading for the workflow section ("How to Run the App" for desktop,
-        "How to use CAFE" for hosted).
-    include_system_requirements : bool
-        Whether to show the desktop-specific system-requirements image.
-    """
+    """Render the CAFE welcome page (workflow_image, how_to_title, and system-requirements section vary by build)."""
     st.image(os.path.join(IMG_DIR, "logo.png"), caption="", width="stretch")
     st.logo(os.path.join(IMG_DIR, "s_logo.png"))
 

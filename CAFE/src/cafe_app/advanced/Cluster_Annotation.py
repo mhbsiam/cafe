@@ -41,11 +41,7 @@ _GROUP_COLORS = [
 
 
 def _styled_umap(adata, color, palette, legend_loc="right margin"):
-    """Render a spine-less, tick-less UMAP coloured by ``color`` (returns fig).
-
-    Legend is drawn in the right margin (not on the data) so both result plots
-    keep an identical axes/plot area.
-    """
+    """Spine-less, tick-less UMAP coloured by `color`, legend in the right margin; returns fig."""
     fig, ax = plt.subplots(figsize=(5, 5))
     sc.pl.umap(
         adata, color=color, palette=palette, ax=ax, show=False, legend_loc=legend_loc
@@ -87,6 +83,8 @@ if uploaded_file and submit_upload:
     st.write(f"AnnData loaded with shape: {st.session_state.adata.shape}")
 
     if 'X_umap' not in st.session_state.adata.obsm.keys():
+        if 'neighbors' not in st.session_state.adata.uns:
+            sc.pp.neighbors(st.session_state.adata)
         sc.tl.umap(st.session_state.adata)
 
     # Clear any stale per-cluster annotation values from a previous session
@@ -98,9 +96,7 @@ if uploaded_file and submit_upload:
 if st.session_state.adata is not None:
     adata = st.session_state.adata
 
-    # ══════════════════════════════════════════════════════════════════════════
     # Manual mode (unchanged behaviour)
-    # ══════════════════════════════════════════════════════════════════════════
     if method == "Manual":
         # Detect clusters and sort numerically where possible
         leiden_clusters = sorted(
@@ -245,9 +241,7 @@ if st.session_state.adata is not None:
                     mime="image/png"
                 )
 
-    # ══════════════════════════════════════════════════════════════════════════
     # Probabilistic mode (per-sample GMM gating)
-    # ══════════════════════════════════════════════════════════════════════════
     else:
         st.markdown(
             "Define each cell type by its marker signature. CAFE fits a "
@@ -373,6 +367,14 @@ if st.session_state.adata is not None:
                     f"high-confidence margin **{high_margin:.2f}**, "
                     f"ambiguous margin **{low_margin:.2f}**."
                 )
+            elif high_margin < low_margin:
+                st.error(
+                    "The high-confidence margin must be greater than or equal to the "
+                    f"ambiguous margin (currently high = {high_margin:.2f} < "
+                    f"ambiguous = {low_margin:.2f}). Adjust the sliders so the "
+                    "'High' band sits above the 'Ambiguous' band."
+                )
+                st.stop()
 
             calls = assign_cell_types(
                 scores, min_score=min_score, high_margin=high_margin, low_margin=low_margin
@@ -443,9 +445,7 @@ if st.session_state.adata is not None:
                             f"**UMAP — group** · High + Low subset (n = {n_sub:,})"
                         )
                         st.caption("Ambiguous-confidence cells excluded.")
-                        # Drop any Group colours carried over from an earlier
-                        # stage's .h5ad, otherwise scanpy reuses them and ignores
-                        # the palette below.
+                        # Drop carried-over Group colours so scanpy uses the palette below.
                         subset.uns.pop("Group_colors", None)
                         n_groups = subset.obs["Group"].nunique()
                         grp_palette = (

@@ -1,14 +1,4 @@
-"""Console entry points for CAFE.
-
-Installing this package exposes the ``cafe`` command (and ``cafe-web`` for the
-hosted layout). Both boot the Streamlit app the same way the old ``cafe.py`` /
-``web.py`` wrappers did, but resolve the entry script relative to this file so
-the command works from any working directory.
-
-The theme and telemetry settings that used to live in ``.streamlit/config.toml``
-are passed here as config overrides, since that file is only picked up when
-Streamlit is launched from the project directory.
-"""
+"""Console entry points for CAFE (cafe / cafe-web): boot Streamlit with theme/telemetry config overrides, cwd-independent."""
 import os
 
 from streamlit.web import cli

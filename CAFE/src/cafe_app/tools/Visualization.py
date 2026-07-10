@@ -128,6 +128,15 @@ if True:
     st.session_state.adata = adata
     st.write(f"Loaded AnnData file: {uploaded_anndata.name}")
 
+    missing_cols = [c for c in ("SampleID", "leiden") if c not in adata.obs.columns]
+    if missing_cols:
+        st.error(
+            "This AnnData is missing required column(s) in `.obs`: "
+            f"{', '.join(missing_cols)}. Visualization expects a CAFE-processed file "
+            "with 'SampleID' and 'leiden' clustering results."
+        )
+        st.stop()
+
     total_samples = len(adata.obs['SampleID'].unique())
     total_cells = adata.n_obs
     total_leiden_clusters = len(adata.obs['leiden'].unique())

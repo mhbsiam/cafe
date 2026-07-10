@@ -2,10 +2,7 @@ import os
 import sys
 import warnings
 
-# scanpy 1.10.4 still reads anndata's now-deprecated `__version__` attribute
-# (anndata >= 0.12), which emits a noisy FutureWarning three times on every
-# launch. Silence just that message — not all FutureWarnings — until scanpy
-# ships a fix. Must run before any page module imports scanpy.
+# Silence scanpy's noisy anndata `__version__` FutureWarning; must run before scanpy is imported.
 warnings.filterwarnings(
     "ignore",
     message=r"`__version__` is deprecated",
@@ -14,15 +11,12 @@ warnings.filterwarnings(
 
 import streamlit as st
 
-# Streamlit only puts this entry script's directory (the package root) on
-# sys.path. The shared utils/_plot_export modules live in ``tools/``, so add
-# that once here — every page can then `from utils import ...` without
-# repeating the path shim.
+# Put tools/ on sys.path so pages can `from utils import ...` without a per-page shim.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 
 from theme import apply_theme
 
-# A2: deployment-mode flag — 'desktop' for local app, 'web' for hosted deployment
+# Deployment-mode flag: 'desktop' for local app, 'web' for hosted.
 st.session_state.setdefault('cafe_deployment', 'desktop')
 
 page1 = st.Page("app/CAFE.py", default=True)
@@ -44,11 +38,7 @@ pg = st.navigation(
     }
 )
 
-# Track page transitions so a page can reset transient UI state on a fresh
-# visit. st.session_state persists across navigation, so a page can't otherwise
-# tell "the user just navigated here" apart from "my own widget triggered a
-# rerun" — both re-run this script. This exposes `_page_changed` (True only on
-# the first run after arriving at a different page) for pages that need it.
+# Expose _page_changed (True only on the first run after navigating to a different page).
 st.session_state['_page_changed'] = st.session_state.get('_active_page') != pg.url_path
 st.session_state['_active_page'] = pg.url_path
 

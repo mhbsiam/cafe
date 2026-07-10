@@ -78,7 +78,10 @@ def process_file(file_path, output_dir, method, n_components, n_markers, n_sampl
         downsampled_df = downsample_uniform(df, n_samples)
         skipped = False
     else:  # PCA + KDE for density methods
-        marker_data = df.iloc[:, :n_markers]
+        # Use numeric marker columns only, dropping known metadata, so leading
+        # non-marker columns (e.g. SampleID/Group) can't corrupt the density estimate.
+        marker_data = df.drop(columns=[c for c in ("SampleID", "Group") if c in df.columns])
+        marker_data = marker_data.select_dtypes(include=[np.number]).iloc[:, :n_markers]
         pca_result = run_pca(marker_data, n_components)
         density = kde_fft(pca_result)
         if method == "density_weighted":
