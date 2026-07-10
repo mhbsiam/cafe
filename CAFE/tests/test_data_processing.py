@@ -219,7 +219,12 @@ class TestBatchEMD:
         # Shifted marker's EMD should dwarf every other marker.
         others = top.drop("CD2").max()
         assert top["CD2"] > 5 * others
-        assert emd.iloc[0]["worst_batch"] == "2"
+        # worst_batch is the batch farthest from the pooled reference. With a
+        # symmetric two-batch shift both batches are ~equidistant from the pool,
+        # so the winner is a floating-point tie that flips across BLAS backends
+        # (Accelerate vs OpenBLAS) and numpy/scipy versions. Assert only that it
+        # names a real batch; the dominance checks above carry the actual intent.
+        assert emd.iloc[0]["worst_batch"] in {"1", "2"}
 
     def test_well_mixed_batches(self):
         """No shift -> tiny EMDs, success verdict, nothing flagged."""
