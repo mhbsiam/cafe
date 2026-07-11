@@ -12,6 +12,7 @@ import streamlit as st
 
 from theme import IMG_DIR, apply_theme, page_header, section_header
 from utils import safe_flatten, safe_sort_clusters
+from session_store import set_adata
 from celltype_gmm import (
     compute_positive_posteriors,
     score_cell_types,
@@ -79,13 +80,8 @@ if 'adata' not in st.session_state:
     st.session_state.adata = None
 
 if uploaded_file and submit_upload:
-    st.session_state.adata = sc.read_h5ad(uploaded_file)
+    set_adata(sc.read_h5ad(uploaded_file), source="cluster_annotation", filename=uploaded_file.name)
     st.write(f"AnnData loaded with shape: {st.session_state.adata.shape}")
-
-    if 'X_umap' not in st.session_state.adata.obsm.keys():
-        if 'neighbors' not in st.session_state.adata.uns:
-            sc.pp.neighbors(st.session_state.adata)
-        sc.tl.umap(st.session_state.adata)
 
     # Clear any stale per-cluster annotation values from a previous session
     for key in [k for k in st.session_state if k.startswith("annotation_")]:
@@ -95,6 +91,15 @@ if uploaded_file and submit_upload:
 
 if st.session_state.adata is not None:
     adata = st.session_state.adata
+
+    # A UMAP embedding may be absent (the file never had one, or it was dropped when the session was
+    # restored on refresh). Compute it once and persist, so the map renders and survives a refresh.
+    if 'X_umap' not in adata.obsm:
+        with st.spinner("Computing UMAP (not found in file)…"):
+            if 'neighbors' not in adata.uns:
+                sc.pp.neighbors(adata)
+            sc.tl.umap(adata)
+        set_adata(adata, source="cluster_annotation:umap")
 
     # Manual mode (unchanged behaviour)
     if method == "Manual":
@@ -149,7 +154,7 @@ if st.session_state.adata is not None:
 
             st.markdown("---")
 
-            # Per-cluster text inputs — keyed into session_state so values persist
+            # Per-cluster text inputs are keyed into session_state so values persist.
             # across reruns triggered by typing in other rows
             for c in leiden_clusters:
                 st.text_input(
@@ -176,7 +181,7 @@ if st.session_state.adata is not None:
 
             if unmapped_clusters:
                 st.error(
-                    "Every Leiden cluster must be annotated before continuing — "
+                    "Every Leiden cluster must be annotated before continuing. "
                     "unmapped cells would be silently dropped from all downstream "
                     "counts and frequencies. Missing annotation for cluster(s): "
                     + ", ".join(unmapped_clusters)
@@ -185,6 +190,7 @@ if st.session_state.adata is not None:
                 adata.obs['cell_type'] = (
                     adata.obs['leiden'].astype(str).map(cell_type_mapping)
                 )
+                set_adata(adata, source="cluster_annotation:annotated")
                 st.success("Cell type annotations applied successfully!")
 
                 random_number = random.randint(1000, 9999)
@@ -253,7 +259,7 @@ if st.session_state.adata is not None:
         markers = list(adata.var_names)
         if "SampleID" not in adata.obs.columns:
             st.warning(
-                "No 'SampleID' column found — marker gates will be fit globally "
+                "No 'SampleID' column found. Marker gates will be fit globally "
                 "across all cells instead of per sample."
             )
 
@@ -336,7 +342,7 @@ if st.session_state.adata is not None:
                 "Ambiguous margin", 0.0, 1.0, 0.15, 0.05,
                 help=(
                     "If the best type barely beats the runner-up (margin below this), "
-                    "the call is 'Ambiguous' — e.g. double-positive cells.\n\n"
+                    "the call is 'Ambiguous' (e.g. double-positive cells).\n\n"
                     "**Higher = stricter** → more cells flagged 'Ambiguous'.\n"
                     "**Lower** → fewer 'Ambiguous'."
                 ),
@@ -363,7 +369,7 @@ if st.session_state.adata is not None:
                 high_margin = tuned["high_margin"]
                 low_margin = tuned["low_margin"]
                 st.info(
-                    f"Auto-tuned thresholds — min match score **{min_score:.2f}**, "
+                    f"Auto-tuned thresholds: min match score **{min_score:.2f}**, "
                     f"high-confidence margin **{high_margin:.2f}**, "
                     f"ambiguous margin **{low_margin:.2f}**."
                 )
@@ -390,6 +396,7 @@ if st.session_state.adata is not None:
                 adata.obsm["celltype_scores"] = scores.to_numpy()
                 adata.uns["celltype_score_names"] = list(scores.columns)
 
+            set_adata(adata, source="cluster_annotation:annotated")
             st.session_state["prob_diagnostics"] = diagnostics
             st.success("Probabilistic annotation applied.")
 
@@ -407,12 +414,12 @@ if st.session_state.adata is not None:
 
             umap_col1, umap_col2 = st.columns(2)
             with umap_col1:
-                st.markdown("**UMAP — cell type**")
+                st.markdown("**UMAP: cell type**")
                 fig_ct = _styled_umap(adata, "cell_type", "tab20c")
                 st.pyplot(fig_ct, width='stretch')
                 plt.close(fig_ct)
             with umap_col2:
-                st.markdown("**UMAP — confidence**")
+                st.markdown("**UMAP: confidence**")
                 fig_cf = _styled_umap(
                     adata, "confidence_level", _CONF_COLORS, legend_loc="right margin"
                 )
@@ -426,14 +433,14 @@ if st.session_state.adata is not None:
             n_sub = subset.n_obs
             if n_sub == 0:
                 st.info(
-                    "No High- or Low-confidence cells to plot — every cell was "
+                    "No High- or Low-confidence cells to plot. Every cell was "
                     "called Ambiguous."
                 )
             else:
                 sub_col1, sub_col2 = st.columns(2)
                 with sub_col1:
                     st.markdown(
-                        f"**UMAP — cell type** · High + Low subset (n = {n_sub:,})"
+                        f"**UMAP: cell type** · High + Low subset (n = {n_sub:,})"
                     )
                     st.caption("Ambiguous-confidence cells excluded.")
                     fig_sub_ct = _styled_umap(subset, "cell_type", "tab20c")
@@ -442,7 +449,7 @@ if st.session_state.adata is not None:
                 with sub_col2:
                     if "Group" in subset.obs.columns:
                         st.markdown(
-                            f"**UMAP — group** · High + Low subset (n = {n_sub:,})"
+                            f"**UMAP: group** · High + Low subset (n = {n_sub:,})"
                         )
                         st.caption("Ambiguous-confidence cells excluded.")
                         # Drop carried-over Group colours so scanpy uses the palette below.
@@ -455,12 +462,12 @@ if st.session_state.adata is not None:
                         st.pyplot(fig_sub_grp, width='stretch')
                         plt.close(fig_sub_grp)
                     else:
-                        st.markdown("**UMAP — group**")
+                        st.markdown("**UMAP: group**")
                         st.info("No 'Group' column found in this AnnData.")
 
-            # Per-cluster purity — validates gates against the Leiden clustering.
+            # Per-cluster purity validates gates against the Leiden clustering.
             if "leiden" in adata.obs.columns:
-                st.markdown("**Per-cluster purity** — dominant cell type per Leiden cluster")
+                st.markdown("**Per-cluster purity**: dominant cell type per Leiden cluster")
                 leiden_str = adata.obs["leiden"].astype(str)
                 purity_rows = []
                 for cl in safe_sort_clusters(leiden_str.unique()):

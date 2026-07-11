@@ -1,4 +1,4 @@
-"""Console entry points for CAFE (cafe / cafe-web): boot Streamlit with theme/telemetry config overrides, cwd-independent."""
+"""Console entry point for CAFE (cafe): boot Streamlit with theme/telemetry config overrides, cwd-independent."""
 import os
 
 from streamlit.web import cli
@@ -8,6 +8,7 @@ _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 # Mirrors the former .streamlit/config.toml so the installed command looks
 # identical no matter where it is launched from.
 _CONFIG_FLAGS = [
+    "--server.address=127.0.0.1",
     "--theme.primaryColor=#0f5070",
     "--theme.backgroundColor=#ffffff",
     "--theme.secondaryBackgroundColor=#f8f9fa",
@@ -25,13 +26,8 @@ def _launch(script_name, max_upload_mb):
 
 
 def main():
-    """Desktop app — the ``cafe`` command."""
+    """Desktop app: the ``cafe`` command."""
     _launch("run.py", 3000)
-
-
-def main_web():
-    """Hosted deployment layout — the ``cafe-web`` command."""
-    _launch("run_w.py", 2000)
 
 
 if __name__ == "__main__":

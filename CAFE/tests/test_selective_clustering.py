@@ -47,7 +47,7 @@ class TestB10SessionStateWipe:
         for key in list(session_state.keys()):
             del session_state[key]
 
-        # Everything is gone — this is the bug
+        # Everything is gone, which is the bug.
         assert len(session_state) == 0
         assert 'adata' not in session_state
 

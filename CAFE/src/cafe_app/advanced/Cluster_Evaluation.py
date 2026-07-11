@@ -18,9 +18,6 @@ from utils import process_directory_csv_files, validate_path
 st.set_page_config(layout="centered")
 apply_theme()
 
-# Check deployment mode
-IS_WEB = st.session_state.get('cafe_deployment') == 'web'
-
 sc.settings.n_jobs = -1
 
 st.logo(os.path.join(IMG_DIR, 's_logo.png'))
@@ -32,16 +29,10 @@ page_header(
 
 # ── Parameter sections ────────────────────────────────────────────────────────
 
-# Disable filesystem access on web
-if IS_WEB:
-    st.warning("This module is only available for offline use. Please download the App from https://github.com/mhbsiam/cafe/releases and run it locally.")
-    input_dir = None
-    output_dir = None
-else:
-    with st.expander("Data I/O", expanded=True):
-        st.caption("Paths to the folder containing your per-sample CSV files and to the folder where processed AnnData objects and UMAP PNGs will be saved.")
-        input_dir = st.text_input("Input CSV Directory Path")
-        output_dir = st.text_input("Output Directory Path")
+with st.expander("Data I/O", expanded=True):
+    st.caption("Paths to the folder containing your per-sample CSV files and to the folder where processed AnnData objects and UMAP PNGs will be saved.")
+    input_dir = st.text_input("Input CSV Directory Path")
+    output_dir = st.text_input("Output Directory Path")
 
 with st.expander("PCA settings", expanded=True):
     st.caption("Control how many principal components are carried forward. A higher variance threshold retains more PCs and preserves more biological signal at the cost of compute time.")
@@ -111,7 +102,7 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
 
         for res_idx, resolution in enumerate(resolutions):
             status_text.caption(
-                f"Step {current_step + 1} of {total_steps} — "
+                f"Step {current_step + 1} of {total_steps}: "
                 fr"n\_neighbors={n_neighbors}, resolution={resolution}"
             )
             sc.tl.leiden(adata, resolution=resolution, random_state=50, flavor=flavor, n_iterations=2, directed=False)
@@ -185,15 +176,15 @@ A higher value means clusters are dense and well-separated relative to each othe
 Average similarity of each cluster to its most similar neighbour.
 Values close to 0 indicate compact, well-separated clusters.
 
-**Inertia — Elbow Method** (**look for the "elbow"**)
+**Inertia: Elbow Method** (**look for the "elbow"**)
 Sum of squared distances from each cell to its cluster centroid.
-Plot against number of clusters and look for the point where the curve bends sharply — adding more clusters beyond that point yields diminishing returns.
+Plot against number of clusters and look for the point where the curve bends sharply. Adding more clusters beyond that point yields diminishing returns.
             """
         )
 
     # ── Unified Plotly metric dashboard ───────────────────────────────────────
     st.subheader("Metric Overview")
-    st.caption("Interactive — hover for exact values. All four metrics plotted together for quick comparison.")
+    st.caption("Interactive plot. Hover for exact values. All four metrics are plotted together for quick comparison.")
 
     # Build hover text from resolution labels
     hover_labels = [
@@ -216,7 +207,7 @@ Plot against number of clusters and look for the point where the curve bends sha
             "Silhouette Score (higher ↑ better)",
             "Calinski-Harabasz Score (higher ↑ better)",
             "Davies-Bouldin Score (lower ↓ better)",
-            "Inertia — Elbow Method",
+            "Inertia: Elbow Method",
         ),
         vertical_spacing=0.16,
         horizontal_spacing=0.12,
@@ -296,7 +287,7 @@ Plot against number of clusters and look for the point where the curve bends sha
     st.plotly_chart(dashboard, width='stretch')
 
 
-if st.button('Run Analysis', type="primary") and not IS_WEB:
+if st.button('Run Analysis', type="primary"):
     with st.spinner("Working..."):
         if not input_dir or not output_dir:
             st.error("Please specify both input and output directories.")

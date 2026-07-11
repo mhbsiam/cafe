@@ -143,7 +143,7 @@ def test_pooled_fallback_rescues_minority_sample():
     """A marker that's bimodal overall but nearly all-negative in one sample
     should still be graded in that sample via the pooled gate (not 0.5)."""
     rng = np.random.default_rng(3)
-    # S1: balanced neg/pos.  S2: almost all negative (only ~3% positive) — too
+    # S1: balanced neg/pos. S2: almost all negative (only ~3% positive), which is too
     # few positives to fit a per-sample bimodal, but pooled is clearly bimodal.
     s1 = _bimodal(neg_mean=0, pos_mean=10, n_neg=250, n_pos=250, seed=3)
     s2 = np.concatenate([

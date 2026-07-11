@@ -9,6 +9,7 @@ import scanpy as sc
 import streamlit as st
 
 from theme import IMG_DIR, apply_theme, page_header, section_header
+from session_store import set_adata
 
 st.set_page_config(layout="centered")
 apply_theme()
@@ -60,7 +61,7 @@ def _render_inventory_split(cluster_ids: list[str], claimed: set[str]) -> None:
     remaining_chips = "".join(
         f'<span class="cafe-chip cafe-chip--primary">{c}</span>'
         for c in remaining
-    ) or '<span style="font-size:0.8125rem;color:var(--cafe-text-subtle)">none — all clusters assigned</span>'
+    ) or '<span style="font-size:0.8125rem;color:var(--cafe-text-subtle)">none (all clusters assigned)</span>'
 
     assigned_chips = "".join(
         f'<span class="cafe-chip cafe-chip--assigned">{c}</span>'
@@ -207,15 +208,10 @@ with st.form(key='upload_form'):
 
 if uploaded_file and submit_upload:
     with st.spinner("Loading AnnData…"):
-        st.session_state.adata = sc.read_h5ad(uploaded_file)
+        set_adata(sc.read_h5ad(uploaded_file), source="merge_clusters", filename=uploaded_file.name)
         # Reset the builder (and any prior merge result) for the new file
         _reset_merge_builder()
         st.session_state.pop("merge_result", None)
-    if 'X_umap' not in st.session_state.adata.obsm.keys():
-        with st.spinner("Computing UMAP (not found in file)…"):
-            if 'neighbors' not in st.session_state.adata.uns:
-                sc.pp.neighbors(st.session_state.adata)
-            sc.tl.umap(st.session_state.adata)
     n_cells, n_markers = st.session_state.adata.shape
     n_clusters = len(_cluster_ids(st.session_state.adata))
     st.success(
@@ -226,6 +222,16 @@ if uploaded_file and submit_upload:
 
 if st.session_state.adata is not None:
     adata = st.session_state.adata
+
+    # A UMAP embedding may be absent (the file never had one, or it was dropped when the session was
+    # restored on refresh). Compute it once and persist, so the map renders and survives a refresh.
+    if 'X_umap' not in adata.obsm:
+        with st.spinner("Computing UMAP (not found in file)…"):
+            if 'neighbors' not in adata.uns:
+                sc.pp.neighbors(adata)
+            sc.tl.umap(adata)
+        set_adata(adata, source="merge_clusters:umap")
+
     all_clusters = _cluster_ids(adata)
 
     st.markdown("---")
@@ -235,7 +241,7 @@ if st.session_state.adata is not None:
     for g in st.session_state.merge_groups:
         all_claimed.update(s.strip() for s in g.get("sources", []) if s.strip())
 
-    # Cluster inventory bar — split into remaining vs assigned
+    # Cluster inventory bar: split into remaining vs assigned
     _render_inventory_split(all_clusters, all_claimed)
 
     # Two-column workspace
@@ -342,6 +348,7 @@ if st.session_state.adata is not None:
                 leiden_copy.replace(cluster_mapping, inplace=True)
                 # Keep leiden categorical so scanpy's palette path stays valid
                 adata.obs['leiden'] = leiden_copy.astype('category')
+                set_adata(adata, source="merge_clusters:merged")
 
                 random_number = random.randint(1000, 9999)
                 merge_log_lines = ["Cluster Merging Input:", _build_format_string(valid_groups), ""]
@@ -381,7 +388,7 @@ if st.session_state.adata is not None:
     if result:
         st.markdown("---")
         st.success(
-            f"Merge applied — {result['n_groups']} group(s), "
+            f"Merge applied with {result['n_groups']} group(s), "
             f"{result['n_sources']} source clusters remapped. "
             f"The cluster map above reflects the update."
         )

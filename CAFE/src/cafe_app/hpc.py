@@ -8,7 +8,6 @@ import gc
 import pandas as pd
 import numpy as np
 import scanpy as sc
-import anndata as ad
 import pyarrow.csv as pv
 import pyarrow as pa
 import matplotlib

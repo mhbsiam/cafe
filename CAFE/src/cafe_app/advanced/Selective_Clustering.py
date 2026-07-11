@@ -5,22 +5,17 @@ import tempfile
 import time
 import zipfile
 
-import anndata as ad
 import matplotlib.pyplot as plt
 import pandas as pd
-import pyarrow as pa
-import pyarrow.csv as pv
 import scanpy as sc
 import streamlit as st
 
 from theme import IMG_DIR, apply_theme, page_header
 from utils import process_uploaded_csv_to_df, run_combat_correction
+from session_store import clear, current_token, set_adata
 
 st.set_page_config(layout="centered")
 apply_theme()
-
-# A2: deployment-mode flag (set by run_w.py for web deployment)
-IS_WEB = st.session_state.get('cafe_deployment') == 'web'
 
 sc.settings.n_jobs = -1
 
@@ -34,7 +29,7 @@ def perform_batch_correction(adata):
     with st.expander("Batch correction", expanded=True):
         st.caption(
             "Use a *technical* batch distinct from the biological Group "
-            "(e.g. acquisition day, instrument) — correcting on Group erases "
+            "(e.g. acquisition day, instrument). Correcting on Group erases "
             "the differences you're testing for. Assign each sample below; "
             "batches must span multiple groups."
         )
@@ -256,11 +251,6 @@ page_header(
     subtitle="Build Leiden clusters from a chosen subset of markers (or a marker-defined cell type) to isolate a specific cell population.",
 )
 
-# A2: In web mode, show offline-only warning and halt
-if IS_WEB:
-    st.warning("This module is only available for offline use. Please download the App from https://github.com/mhbsiam/cafe/releases and run it locally.")
-    st.stop()
-
 option = st.radio(
     "Choose your option:",
     ["Subset by removing markers", "Subset by cell type"]
@@ -272,6 +262,7 @@ if st.button("Apply", type="primary"):
     for key in list(st.session_state.keys()):
         if key.startswith('selective_') or key.startswith('subset_'):
             del st.session_state[key]
+    clear(current_token())
     st.session_state['adata'] = None
     st.session_state['pca_done'] = False
     st.session_state['batch_correction_done'] = False
@@ -310,7 +301,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
 
     _step_label = _steps[_current_step - 1]
     st.progress(_current_step / len(_steps))
-    st.caption(f"**Step {_current_step} of {len(_steps)} — {_step_label}**")
+    st.caption(f"**Step {_current_step} of {len(_steps)}: {_step_label}**")
 
     st.markdown("---")
 
@@ -320,7 +311,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
             if option == 'Subset by removing markers':
                 st.caption(
                     "Upload your per-sample CSV files. Then select the markers to **retain** "
-                    "for AnnData creation — deselect any markers you want to exclude from clustering."
+                    "for AnnData creation. Deselect any markers you want to exclude from clustering."
                 )
             else:
                 st.caption(
@@ -368,7 +359,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
                         adata = sc.AnnData(expr_data)
                         adata.obs = metadata
                         adata.var_names = expr_data.columns.astype(str)
-                        st.session_state['adata'] = adata
+                        set_adata(adata, source="selective_clustering")
                         st.write("AnnData object created.")
 
                 elif option == 'Subset by cell type':
@@ -383,7 +374,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
                         help="Cells with zero or negative expression of this marker will be excluded."
                     )
 
-                    # Live cell count preview — updates reactively as marker changes
+                    # The live cell count preview updates reactively as the marker changes.
                     if selected_marker:
                         n_total_cells = len(expr_data)
                         n_passing = int((expr_data[selected_marker] > 0).sum())
@@ -411,7 +402,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
                         adata = sc.AnnData(expr_data)
                         adata.obs = metadata
                         adata.var_names = expr_data.columns.astype(str)
-                        st.session_state['adata'] = adata
+                        set_adata(adata, source="selective_clustering")
                         st.write("AnnData object created after subsetting.")
     else:
         adata = st.session_state['adata']
@@ -420,7 +411,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
     if st.session_state['adata'] is not None and not st.session_state.get('pca_done', False):
 
         with st.expander("PCA", expanded=True):
-            st.caption("Dimensionality reduction before clustering. PCA is optional — skip it if your panel is small or you prefer to cluster in marker space directly.")
+            st.caption("Dimensionality reduction before clustering. PCA is optional. Skip it if your panel is small or you prefer to cluster in marker space directly.")
 
             with st.form(key='pca_selection_form'):
                 pca_option = st.radio(
@@ -499,16 +490,16 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
             sc.pl.pca(adata, color='Group', show=True)
 
             st.session_state.pca_done = True
-            st.session_state.adata = adata
+            set_adata(adata, source="selective_clustering:pca")
 
     # ── Step 3: Batch correction ───────────────────────────────────────────────
     if st.session_state.get('pca_done', False) and not st.session_state.get('batch_correction_done', False):
         adata = perform_batch_correction(st.session_state['adata'])
-        st.session_state['adata'] = adata
+        set_adata(adata, source="selective_clustering:batch")
 
     # ── Step 4: UMAP & Leiden ─────────────────────────────────────────────────
     if st.session_state.get('batch_correction_done', False) and not st.session_state.get('umap_computed', False):
         adata = compute_umap_leiden(st.session_state['adata'])
-        st.session_state['adata'] = adata
+        set_adata(adata, source="selective_clustering:leiden")
 else:
     st.caption("Select an option above and press **Apply** to begin.")

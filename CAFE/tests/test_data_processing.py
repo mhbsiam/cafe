@@ -272,7 +272,7 @@ class TestRecommendNmads:
 
     @staticmethod
     def _max_tail_pct(vals, nm):
-        """Larger of the two tail removal percentages — the per-tail heuristic's basis."""
+        """Larger tail-removal percentage, which is the basis of the per-tail heuristic."""
         vals = np.asarray(vals, dtype=float)
         med = np.median(vals)
         mad = median_abs_deviation(vals)
@@ -324,7 +324,7 @@ class TestSeedPerSampleNmads:
     """The per-sample n_MADs auto-seeding helper in Data_Processing.py.
 
     That module runs Streamlit at import time, so we extract just this function's
-    AST node and exec it against a stub ``st`` — no Streamlit runtime needed.
+    AST node and execute it against a stub ``st`` without a Streamlit runtime.
     Verifies: first entry seeds from recommendations; a degenerate rec (None or
     the NaN pandas coerces it to) falls back to 5.0; changing the cap re-seeds
     everything; and a manual override survives while the cap is unchanged.
@@ -374,7 +374,7 @@ class TestSeedPerSampleNmads:
 class TestReviewGate:
     """The step-advancement gate in Data_Processing.py.
 
-    Guards the core fix: a finished step must NOT auto-advance — its results are
+    Guards the core fix: a finished step must NOT auto-advance because its results are
     stashed and shown, and only clicking Continue sets the step's done flag. The
     module runs Streamlit at import time, so we extract the helper's AST node and
     exec it against a stub ``st`` whose ``stop``/``rerun`` raise sentinels.
@@ -439,11 +439,63 @@ class TestReviewGate:
         assert "_qc_pending" not in st.session_state
 
 
+class TestPcaResultScatterItems:
+    """PCA result plots must match the annotation columns that are actually present."""
+
+    @staticmethod
+    def _load():
+        import ast
+        from pathlib import Path
+
+        src_path = (
+            Path(__file__).resolve().parents[1]
+            / "src" / "cafe_app" / "tools" / "Data_Processing.py"
+        )
+        tree = ast.parse(src_path.read_text())
+        calls = []
+        ns = {
+            "GROUP_PALETTE": ["group-color"],
+            "_pca_scatter": lambda adata, color, palette=None: calls.append(color) or color,
+        }
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name == "_pca_result_scatter_items":
+                exec(compile(ast.Module([node], []), "<extract>", "exec"), ns)
+                return ns["_pca_result_scatter_items"], calls
+        raise AssertionError("_pca_result_scatter_items not found")
+
+    def test_missing_batch_ignores_stale_combat_plots(self, small_dense_adata):
+        build_items, calls = self._load()
+
+        items = build_items(
+            small_dense_adata,
+            before_batch=b"stale-batch",
+            before_group=b"stale-group",
+        )
+
+        assert calls == ["Group"]
+        assert items[0] == ("write", "PCA results by group:")
+        assert all("ComBat" not in str(item) for item in items)
+
+    def test_combat_comparison_requires_batch_and_group(self, small_dense_adata):
+        build_items, calls = self._load()
+        small_dense_adata.obs["Batch"] = "1"
+
+        items = build_items(
+            small_dense_adata,
+            before_batch=b"before-batch",
+            before_group=b"before-group",
+        )
+
+        assert calls == ["Batch", "Group"]
+        assert any("colored by Batch" in str(item) for item in items)
+        assert any("colored by Group" in str(item) for item in items)
+
+
 class TestBuildOutputsZip:
     """The lazily-called output ZIP builder in Data_Processing.py.
 
     Guards the refactor that moved ZIP packaging out of the clustering step (so
-    it can run under a spinner on the Export click): the ZIP must still contain
+    it can run under a spinner on the Export click), the ZIP must still contain
     exactly the same set of outputs. Extracted via AST with its two helper deps
     stubbed, so no Streamlit runtime is needed.
     """

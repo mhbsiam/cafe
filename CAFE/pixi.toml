@@ -20,7 +20,7 @@ pytest = ">=8.0"
 # Core numerical and data processing.
 # Upgraded 2026-07 to the scanpy 1.12 / numpy 2 / pandas 3 stack. Exact pins for
 # reproducibility across the pixi, conda (cafe.yaml) and uv/pip (pyproject.toml)
-# install paths — all three resolve to this identical set.
+# install paths. All three resolve to this identical set.
 numpy = "==2.4.6"
 pandas = "==3.0.3"
 scipy = "==1.18.0"

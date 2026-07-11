@@ -19,6 +19,7 @@ import streamlit as st
 from scipy.stats import median_abs_deviation
 
 from theme import (
+    IMG_DIR,
     TOKENS,
     apply_theme,
     info_card,
@@ -36,9 +37,11 @@ from utils import (
     run_combat_correction,
     summarize_batch_effect,
 )
+from session_store import clear_current_data, set_adata
 
 sc.settings.n_jobs = -1
 apply_theme()
+st.logo(os.path.join(IMG_DIR, 's_logo.png'))
 
 _STEPS = ["Upload", "QC", "PCA", "Batch", "UMAP + Leiden"]
 
@@ -143,6 +146,77 @@ def _snapshot_fig(fig, tight=True):
     return buf.getvalue()
 
 
+# Group scatters use their own palette so they read as distinct from the Batch
+# scatters (which keep scanpy's blue/orange default). Okabe-Ito colours, ordered
+# to avoid blue/orange up front, keep the two figures visually separable and stay
+# colourblind-safe. Batch = "how it was acquired", Group = "the biology".
+GROUP_PALETTE = [
+    "#009E73",  # bluish green
+    "#CC79A7",  # reddish purple
+    "#F0E442",  # yellow
+    "#56B4E9",  # sky blue
+    "#E69F00",  # orange
+    "#0072B2",  # blue
+    "#D55E00",  # vermillion
+    "#000000",  # black
+]
+
+
+def _pca_scatter(adata, color, palette=None, title=""):
+    """Clean PCA scatter as PNG bytes: soft points for dense data, minimal frame, no redundant title."""
+    fig, ax = plt.subplots(figsize=(4.2, 4.2))
+    sc.pl.pca(
+        adata,
+        color=color,
+        palette=palette,
+        ax=ax,
+        show=False,
+        alpha=0.6,
+        title=title,
+        frameon=True,
+    )
+    ax.set_xlabel("PC1")
+    ax.set_ylabel("PC2")
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    return _snapshot_fig(fig)
+
+
+def _pca_result_scatter_items(adata, before_batch=None, before_group=None):
+    """Build only the PCA scatter results supported by the current AnnData columns."""
+    has_batch = "Batch" in adata.obs.columns
+    has_group = "Group" in adata.obs.columns
+    has_combat_comparison = (
+        has_batch and has_group and before_batch is not None and before_group is not None
+    )
+
+    if has_combat_comparison:
+        after_batch_png = _pca_scatter(adata, color="Batch")
+        after_group_png = _pca_scatter(adata, color="Group", palette=GROUP_PALETTE)
+        return [
+            ("subheader", "PCA before vs after ComBat: colored by Batch"),
+            ("image_row", [(before_batch, "Before ComBat"), (after_batch_png, "After ComBat")]),
+            (
+                "caption",
+                "Batches should overlap more after correction. This means the "
+                "technical effect is gone.",
+            ),
+            ("subheader", "PCA before vs after ComBat: colored by Group"),
+            ("image_row", [(before_group, "Before ComBat"), (after_group_png, "After ComBat")]),
+            (
+                "caption",
+                "Groups should stay separated after correction. This is the "
+                "biology you want to keep.",
+            ),
+        ]
+
+    if has_group:
+        group_png = _pca_scatter(adata, color="Group", palette=GROUP_PALETTE)
+        return [("write", "PCA results by group:"), ("image", group_png)]
+
+    return []
+
+
 def _render_review_items(items):
     """Render a stored list of ``(kind, payload)`` result items."""
     renderers = {
@@ -188,7 +262,7 @@ def _safe_filename(name):
     return re.sub(r"[^A-Za-z0-9._-]+", "_", str(name)).strip("_") or "sample"
 
 
-# Canonical CAFE reference — cite this in any publication using CAFE outputs.
+# Canonical CAFE reference: cite this in any publication using CAFE outputs.
 _CAFE_CITATION = (
     "Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Satwik Acharyya, "
     "Mallikarjun Patil, Daniel J Tyrrell, CAFE: An Integrated Web App for "
@@ -250,7 +324,7 @@ def build_parameters_report(adata):
     def add(line=""):
         L.append(line)
 
-    add("CAFE — Data Processing: Methods & Parameters")
+    add("CAFE: Data Processing: Methods & Parameters")
     add("=" * 52)
     add(f"Generated: {datetime.datetime.now():%Y-%m-%d %H:%M:%S}")
     add("Random seed: 50 (neighbors, UMAP, Leiden)")
@@ -267,7 +341,7 @@ def build_parameters_report(adata):
     add("QUALITY CONTROL")
     add("-" * 52)
     if not qc.get("performed"):
-        add("Not performed — no cells removed.")
+        add("Not performed. No cells were removed.")
     else:
         mode = "per-sample" if qc.get("per_sample") else "global"
         add(f"Method           : MAD outlier removal on per-cell total signal ({mode})")
@@ -562,6 +636,10 @@ def render_batch_diagnostics(adata, batch_map):
 # Session state initialization
 def _init_state():
     st.session_state.setdefault("adata", None)
+    # Session-scoped: True only once the user has loaded CSVs into the pipeline *this session*. It is not
+    # persisted or restored, so a page refresh (or arriving with data restored for another page) starts the
+    # pipeline over at Upload instead of resuming mid-way.
+    st.session_state.setdefault("_dp_started", False)
     st.session_state.setdefault("uploaded_files", None)
     st.session_state.setdefault("batch_correction_done", False)
     st.session_state.setdefault("umap_computed", False)
@@ -573,15 +651,12 @@ def _init_state():
 
 _init_state()
 
-page_header(
-    "Data Processing",
-    subtitle="Upload CSVs, clean the data, run dimensionality reduction and clustering, then export a ZIP of results.",
-)
+page_header("Data Processing")
 
 
 # Stepper state
 def _current_step() -> int:
-    if st.session_state.adata is None:
+    if not st.session_state.get("_dp_started") or st.session_state.adata is None:
         return 0
     if not st.session_state.qc_done:
         return 1
@@ -594,7 +669,7 @@ def _current_step() -> int:
 
 def _done_steps() -> set[int]:
     done = set()
-    if st.session_state.adata is not None:
+    if st.session_state.get("_dp_started") and st.session_state.adata is not None:
         done.add(0)
     if st.session_state.qc_done:
         done.add(1)
@@ -609,25 +684,23 @@ def _done_steps() -> set[int]:
 
 stepper(_STEPS, _current_step(), _done_steps())
 
-# Step 0: Upload CSVs
-if st.session_state.adata is None:
+# Step 0: Upload CSVs. Show this step until the user has loaded CSVs into the pipeline this session.
+# so a refresh (or data restored for another page) starts over here rather than jumping ahead.
+if not st.session_state.get("_dp_started") or st.session_state.adata is None:
     section_header(
         "Upload your CSV files",
         subtitle="Files must follow the SampleID_Group.csv naming convention and contain the same markers.",
         step=1,
     )
 
-    info_card(
-        title="CSV format checklist",
-        body=(
-            "- Name each file <code>SampleID_Group.csv</code>, e.g. <code>ABC001_Aged.csv</code><br>"
-            "- Include the same markers in every file<br>"
-            "- Use identical marker names (case-sensitive)<br>"
-            "- Use unique sample names<br>"
+    with st.expander("📋 CSV format checklist", expanded=False):
+        st.markdown(
+            "- Name each file `SampleID_Group.csv`, e.g. `ABC001_Aged.csv`\n"
+            "- Include the same markers in every file\n"
+            "- Use identical marker names (case-sensitive)\n"
+            "- Use unique sample names\n"
             "- Two biological groups are recommended for statistics"
-        ),
-        kind="info",
-    )
+        )
 
     # Phase A: pick files, then rerun into the review phase (B).
     if st.session_state.get("_upload_review") is None:
@@ -644,7 +717,7 @@ if st.session_state.adata is None:
 
         st.stop()
 
-    # Phase B — review what was uploaded.
+    # Phase B: review what was uploaded.
     review = st.session_state["_upload_review"]
     file_rows = review["files"]
 
@@ -678,7 +751,7 @@ if st.session_state.adata is None:
         st.caption(f"{len(common)} marker(s) shared across all files.")
         st.write(", ".join(common))
     else:
-        st.caption("No marker is shared across every file — see the mismatch report below.")
+        st.caption("No marker is shared across every file. See the mismatch report below.")
 
     mismatches = review["mismatches"]
     bad_names = review["bad_names"]
@@ -737,7 +810,8 @@ if st.session_state.adata is None:
                 pass
         adata = process_uploaded_csv_files(st.session_state["_upload_files"])
         if adata is not None:
-            st.session_state.adata = adata
+            set_adata(adata, source="data_processing:upload")
+            st.session_state["_dp_started"] = True
             st.session_state.pop("_upload_review", None)
             st.session_state.pop("_upload_files", None)
             st.rerun()
@@ -768,63 +842,16 @@ if not st.session_state.qc_done:
 
     with st.expander("How MAD-based filtering works, and how to tweak it"):
         st.markdown(
-            "**What it looks at.** For every cell we add up all its marker intensities "
-            "into one number, the *total marker signal*. Dead cells and debris tend to "
-            "have an abnormally low total; doublets and aggregates tend to have an "
-            "abnormally high one. Both are technical junk we want to drop.\n\n"
-            "**How the cutoffs are set.** We take the median of that total-signal "
-            "distribution and its MAD (median absolute deviation). MAD is a robust "
-            "measure of spread: because it is built from medians, a handful of extreme "
-            "cells cannot inflate it the way they would inflate a standard deviation. A "
-            "cell is flagged when its total signal falls below "
-            "`median - n x MAD` (debris) or above `median + n x MAD` (doublets). Both "
-            "tails are removed.\n\n"
-            "**How to tweak it.** The *Number of MADs* (`n`) sets how far from the "
-            "median the cutoffs sit. A higher `n` widens the window and removes fewer "
-            "cells (more lenient); a lower `n` tightens it and removes more (stricter). "
-            "The default of 5 is a common moderate choice. Choose *Perform QC per "
-            "sample* to compute the median and MAD within each sample, which is useful "
-            "when samples differ in overall brightness or were acquired on different "
-            "days.\n\n"
-            "**Before you commit.** Nothing is removed until you click *Apply QC*. The "
-            "summary table below shows each cutoff and the resulting % removed, and the "
-            "sensitivity table shows how that % changes across a range of `n` values, so "
-            "a sample whose removal climbs steeply as `n` drops is threshold-sensitive."
-        )
-
-    with st.expander("Recommended n_MADs — quick reference"):
-        st.markdown(
-            "There is no universally correct MAD value — it trades off removing "
-            "technical junk against discarding real cells. Use this as a starting "
-            "point:"
-        )
-        st.table(
-            pd.DataFrame(
-                [
-                    {
-                        "n_MADs": "2–3",
-                        "Stringency": "Strict",
-                        "When to use": "Clean, well-controlled samples; aggressively trims tails (risk: removes real cells).",
-                    },
-                    {
-                        "n_MADs": "4–5",
-                        "Stringency": "Moderate (default 5)",
-                        "When to use": "Robust general-purpose choice for most spectral flow data.",
-                    },
-                    {
-                        "n_MADs": "6–8",
-                        "Stringency": "Lenient",
-                        "When to use": "Noisy samples or rare populations you want to preserve.",
-                    },
-                ]
-            ).set_index("n_MADs")
-        )
-        st.caption(
-            "In per-sample mode each sample's n_MADs is auto-set from your *target "
-            "% removed per tail*: the tightest n that keeps each tail (debris and "
-            "doublets) at or under that target. Open *Fine-tune per sample* to "
-            "override individual samples. It is a transparent heuristic, not a "
-            "biological ground truth."
+            "Each cell's marker intensities are summed into a *total marker signal*. "
+            "Cells are dropped when that signal falls below `median - n x MAD` (debris) "
+            "or above `median + n x MAD` (doublets), where MAD is a robust, outlier-"
+            "resistant measure of spread.\n\n"
+            "- **Number of MADs (`n`)**: higher is more lenient (removes fewer cells), "
+            "lower is stricter. Default 5.\n"
+            "- **Perform QC per sample**: computes median/MAD within each sample; use "
+            "it when samples differ in brightness or acquisition day.\n\n"
+            "Nothing is removed until you click *Apply QC*. The summary and sensitivity "
+            "tables below preview the % removed at your `n` and across nearby values."
         )
 
     qc_option = st.radio(
@@ -859,7 +886,10 @@ if not st.session_state.qc_done:
                 key="qc_reco_cap",
                 help="Each sample's n_MADs is auto-set to the tightest value that "
                 "keeps each tail (debris and doublets) at or under this %. Changing "
-                "it re-fills the per-sample values below.",
+                "it re-fills the per-sample values below. "
+                "Stringency guide: n_MADs 2–3: strict (trims aggressively, may drop "
+                "real cells); 4–5: moderate (default 5, good for most spectral flow "
+                "data); 6–8: lenient (noisy samples or rare populations to preserve).",
             )
             recs = {
                 sid: recommend_nmads(
@@ -874,7 +904,7 @@ if not st.session_state.qc_done:
             with st.expander("Fine-tune per sample (optional)", expanded=False):
                 st.caption(
                     "Each sample starts from the recommended value for the target "
-                    "above. Override any you like — changing the target resets these."
+                    "above. Override any you like. Changing the target resets these."
                 )
                 for sid in sample_ids:
                     nmads_map[sid] = st.number_input(
@@ -892,6 +922,9 @@ if not st.session_state.qc_done:
                 value=5.0,
                 step=0.5,
                 key="qc_nmads",
+                help="Stringency guide: 2–3: strict (trims aggressively, may drop "
+                "real cells); 4–5: moderate (default 5, good for most spectral flow "
+                "data); 6–8: lenient (noisy samples or rare populations to preserve).",
             )
             preview_groups = [("All samples", np.arange(adata.n_obs))]
 
@@ -915,7 +948,7 @@ if not st.session_state.qc_done:
             width='stretch',
         )
         st.caption(
-            "Sensitivity — % of cells removed at each n_MADs. A row that climbs steeply as n_MADs drops is threshold-sensitive."
+            "Sensitivity: % of cells removed at each n_MADs. A row that climbs steeply as n_MADs drops is threshold-sensitive."
         )
         st.dataframe(
             sens_df.style.background_gradient(cmap="YlGnBu", axis=1),
@@ -942,16 +975,22 @@ if not st.session_state.qc_done:
             remove_mask = np.zeros(adata.n_obs, dtype=bool)
 
             if qc_per_sample:
+                sample_lower_cuts = []
+                sample_upper_cuts = []
                 for sample_id in adata.obs["SampleID"].unique():
                     idx = np.where(adata.obs["SampleID"].values == sample_id)[0]
                     sample_nmads = nmads_map.get(sample_id, nmads)
-                    lower_mask, upper_mask, _, _, _ = mad_outlier_tails(
+                    lower_mask, upper_mask, _, s_lower_cut, s_upper_cut = mad_outlier_tails(
                         total_signal[idx], sample_nmads
                     )
                     if use_lower:
                         remove_mask[idx[lower_mask]] = True
+                        if not np.isnan(s_lower_cut):
+                            sample_lower_cuts.append(s_lower_cut)
                     if use_upper:
                         remove_mask[idx[upper_mask]] = True
+                        if not np.isnan(s_upper_cut):
+                            sample_upper_cuts.append(s_upper_cut)
                 lower_cut = upper_cut = None
             else:
                 lower_mask, upper_mask, med, lower_cut, upper_cut = mad_outlier_tails(
@@ -989,7 +1028,22 @@ if not st.session_state.qc_done:
 
             fig, ax = plt.subplots()
             ax.hist(total_signal, bins=100, color=TOKENS.primary_light, edgecolor=TOKENS.primary)
-            if not qc_per_sample and lower_cut is not None:
+            if qc_per_sample:
+                # Per-sample cutoffs differ by sample; draw each as a thin line
+                # over the pooled histogram, with one legend entry per tail.
+                for i, cut in enumerate(sample_lower_cuts):
+                    ax.axvline(
+                        cut, color=TOKENS.primary, linestyle="--", linewidth=0.8, alpha=0.6,
+                        label="Lower cutoffs (per sample)" if i == 0 else None,
+                    )
+                for i, cut in enumerate(sample_upper_cuts):
+                    ax.axvline(
+                        cut, color=TOKENS.primary, linestyle="--", linewidth=0.8, alpha=0.6,
+                        label="Upper cutoffs (per sample)" if i == 0 else None,
+                    )
+                if sample_lower_cuts or sample_upper_cuts:
+                    ax.legend()
+            elif lower_cut is not None:
                 if use_lower:
                     ax.axvline(
                         lower_cut, color=TOKENS.primary, linestyle="--", label="Lower cutoff"
@@ -1005,7 +1059,7 @@ if not st.session_state.qc_done:
             hist_png = _snapshot_fig(fig)
 
             adata = adata[~remove_mask].copy()
-            st.session_state.adata = adata
+            set_adata(adata, source="data_processing:qc")
             st.session_state.pop("_qc_total_signal", None)
 
             st.session_state["_params_qc"] = {
@@ -1117,7 +1171,7 @@ if st.session_state.batch_correction_done and not st.session_state.pca_done:
 
         progress += 25
         progress_bar.progress(progress)
-        st.session_state.adata = adata
+        set_adata(adata, source="data_processing:pca")
         st.session_state["_params_pca"] = {
             "performed": True,
             "solver": pca_solver,
@@ -1162,30 +1216,14 @@ if st.session_state.batch_correction_done and not st.session_state.pca_done:
         ax.legend(loc="lower right")
         cumulative_png = _snapshot_fig(fig)
 
-        # If ComBat ran, it stashed pre-correction PCA plots — show a before/after grid.
+        # If ComBat ran, it stashed pre-correction PCA plots: show a before/after grid.
         before_batch = st.session_state.get("_pre_combat_pca_batch")
         before_group = st.session_state.get("_pre_combat_pca_group")
-        if before_batch is not None and before_group is not None:
-            fig, ax = plt.subplots()
-            sc.pl.pca(st.session_state.adata, color="Batch", ax=ax, show=False)
-            after_batch_png = _snapshot_fig(fig)
-            fig, ax = plt.subplots()
-            sc.pl.pca(st.session_state.adata, color="Group", ax=ax, show=False)
-            after_group_png = _snapshot_fig(fig)
-            scatter_items = [
-                ("subheader", "PCA before vs after ComBat — colored by Batch"),
-                ("image_row", [(before_batch, "Before ComBat"), (after_batch_png, "After ComBat")]),
-                ("subheader", "PCA before vs after ComBat — colored by Group"),
-                ("image_row", [(before_group, "Before ComBat"), (after_group_png, "After ComBat")]),
-            ]
-        else:
-            fig, ax = plt.subplots()
-            sc.pl.pca(st.session_state.adata, color="Group", ax=ax, show=False)
-            pca_scatter_png = _snapshot_fig(fig)
-            scatter_items = [
-                ("write", "PCA Results by Group:"),
-                ("image", pca_scatter_png),
-            ]
+        scatter_items = _pca_result_scatter_items(
+            st.session_state.adata,
+            before_batch=before_batch,
+            before_group=before_group,
+        )
 
         # Stash results for the review gate.
         pca_items = []
@@ -1287,6 +1325,9 @@ if not st.session_state.batch_correction_done:
             st.session_state["_show_batch_diag"] = False
             # Drop the Batch column the read-only diagnostic left behind.
             adata.obs.drop(columns=["Batch"], inplace=True, errors="ignore")
+            st.session_state.pop("_pre_combat_pca_batch", None)
+            st.session_state.pop("_pre_combat_pca_group", None)
+            set_adata(adata, source="data_processing:batch_skipped")
             st.rerun()
         elif batch_correction_method == "None":
             st.session_state.batch_correction_done = True
@@ -1294,6 +1335,9 @@ if not st.session_state.batch_correction_done:
             st.session_state["_show_batch_diag"] = False
             # No correction means no Batch annotation downstream.
             adata.obs.drop(columns=["Batch"], inplace=True, errors="ignore")
+            st.session_state.pop("_pre_combat_pca_batch", None)
+            st.session_state.pop("_pre_combat_pca_group", None)
+            set_adata(adata, source="data_processing:batch_skipped")
             st.info("No batch correction applied.")
             st.rerun()
         else:
@@ -1304,16 +1348,14 @@ if not st.session_state.batch_correction_done:
             emd_before = compute_batch_emd(adata, batch_key="Batch", scales=emd_scales)
 
             # Capture pre-ComBat PCA now (before ComBat mutates adata.X in place), so the
-            # PCA step can show a before/after comparison. Store only PNG bytes — bdata is
-            # discarded — keeping memory flat on large datasets.
+            # PCA step can show a before/after comparison. Store only PNG bytes: bdata is
+            # discarded to keep memory flat on large datasets.
             bdata = adata.copy()
             sc.tl.pca(bdata)
-            fig, ax = plt.subplots()
-            sc.pl.pca(bdata, color="Batch", ax=ax, show=False)
-            st.session_state["_pre_combat_pca_batch"] = _snapshot_fig(fig)
-            fig, ax = plt.subplots()
-            sc.pl.pca(bdata, color="Group", ax=ax, show=False)
-            st.session_state["_pre_combat_pca_group"] = _snapshot_fig(fig)
+            st.session_state["_pre_combat_pca_batch"] = _pca_scatter(bdata, color="Batch")
+            st.session_state["_pre_combat_pca_group"] = _pca_scatter(
+                bdata, color="Group", palette=GROUP_PALETTE
+            )
             del bdata
 
             start_time = time.time()
@@ -1323,6 +1365,9 @@ if not st.session_state.batch_correction_done:
             if not ok:
                 st.error(msg)
                 adata.obs.drop(columns=["Batch"], inplace=True, errors="ignore")
+                st.session_state.pop("_pre_combat_pca_batch", None)
+                st.session_state.pop("_pre_combat_pca_group", None)
+                set_adata(adata, source="data_processing:batch_failed")
             else:
                 emd_after = compute_batch_emd(adata, batch_key="Batch", scales=emd_scales)
                 batch_items = [("success", f"{msg} (in {elapsed_time:.2f} seconds)")]
@@ -1379,7 +1424,7 @@ if not st.session_state.batch_correction_done:
                         ("image", scatter_png),
                     ]
 
-                st.session_state.adata = adata
+                set_adata(adata, source="data_processing:batch")
                 st.session_state["_show_batch_diag"] = False
                 st.session_state["_params_batch"] = {
                     "method": "ComBat",
@@ -1459,7 +1504,7 @@ if not st.session_state.umap_computed:
                     zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs)
                 st.session_state["_last_zip_buffer"] = zip_bytes
                 st.session_state["_last_zip_name"] = zip_name
-            except Exception as exc:  # noqa: BLE001 — surface, don't crash the page
+            except Exception as exc:  # noqa: BLE001 (surface the error without crashing the page)
                 st.warning(
                     f"Couldn't package the download automatically ({exc}). "
                     "Use the button below to build it."
@@ -1486,7 +1531,7 @@ if not st.session_state.umap_computed:
             # Fallback: build on demand, then rerun to render the ready button.
             resolution = st.session_state.get("_umap_resolution", 0.5)
             with st.spinner(
-                "Preparing your download — this can take a moment for large datasets…"
+                "Preparing your download. This can take a moment for large datasets…"
             ):
                 zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs)
             st.session_state["_last_zip_buffer"] = zip_bytes
@@ -1495,13 +1540,13 @@ if not st.session_state.umap_computed:
 
         with st.expander("What's in the download"):
             st.markdown(
-                "- **`adata_*.h5ad`** — processed AnnData for the Visualization page\n"
-                "- **`analysis_parameters_*.txt`** — every parameter used, a draft "
+                "- **`adata_*.h5ad`**: processed AnnData for the Visualization page\n"
+                "- **`analysis_parameters_*.txt`**: every parameter used, a draft "
                 "methods paragraph, and the CAFE citation\n"
-                "- **`per_sample_clustered/`** — one CSV per sample with a "
+                "- **`per_sample_clustered/`**: one CSV per sample with a "
                 "`Leiden_Cluster` column and UMAP coordinates, ready to re-import "
                 "into FlowJo\n"
-                "- **`umap_plots/`** — the two UMAPs above (Leiden clusters and "
+                "- **`umap_plots/`**: the two UMAPs above (Leiden clusters and "
                 "group) as PNGs\n"
                 "- cluster count, frequency, and median-expression tables"
             )
@@ -1514,8 +1559,7 @@ if not st.session_state.umap_computed:
         st.divider()
 
         if st.button("Start over", type="secondary", key="dp_start_over"):
-            for key in [
-                "adata",
+            clear_current_data(extra_keys=[
                 "uploaded_files",
                 "batch_correction_done",
                 "umap_computed",
@@ -1537,8 +1581,7 @@ if not st.session_state.umap_computed:
                 "_umap_pending",
                 "_pre_combat_pca_batch",
                 "_pre_combat_pca_group",
-            ]:
-                st.session_state.pop(key, None)
+            ])
             st.rerun()
 
         st.stop()
@@ -1709,6 +1752,9 @@ if not st.session_state.umap_computed:
                 st.session_state.pop("_last_zip_name", None)
                 st.session_state["_umap_resolution"] = resolution
                 st.session_state["leiden_computed"] = True
+                # Persist the clustered result (UMAP + Leiden mutate adata in place) so a refresh restores
+                # the CAFE-processed object Visualization consumes, not the pre-clustering version.
+                set_adata(adata, source="data_processing:leiden")
 
                 progress += 25
                 progress_bar.progress(progress)

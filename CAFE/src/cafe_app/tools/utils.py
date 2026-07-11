@@ -7,7 +7,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import scanpy as sc
-import anndata as ad
 import pyarrow as pa
 import pyarrow.csv as pv
 from scipy.sparse import issparse
@@ -190,7 +189,7 @@ def inspect_uploaded_csv_files(uploaded_files):
         name_parts = name.replace(".csv", "").split("_")
         name_ok = len(name_parts) == 2
         sample = name_parts[0] if name_ok else name.replace(".csv", "")
-        group = name_parts[1] if name_ok else "—"
+        group = name_parts[1] if name_ok else "N/A"
 
         files.append({
             "file": name,

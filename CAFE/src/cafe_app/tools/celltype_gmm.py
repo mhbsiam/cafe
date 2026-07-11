@@ -108,7 +108,7 @@ def compute_positive_posteriors(adata, sample_key="SampleID", random_state=0,
     for m_idx, marker in enumerate(markers):
         col_full = X[:, m_idx]
 
-        # Pooled fit — stabiliser for minority-positive markers and fallback gate.
+        # Pooled fit stabilizes minority-positive markers and provides a fallback gate.
         _, pooled_info = fit_marker_gmm(col_full, random_state=random_state, max_fit=max_fit)
         step += 1
         if progress is not None:

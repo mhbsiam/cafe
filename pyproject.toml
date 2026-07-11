@@ -43,7 +43,6 @@ Repository = "https://github.com/mhbsiam/cafe"
 
 [project.scripts]
 cafe = "cafe_app.launcher:main"
-cafe-web = "cafe_app.launcher:main_web"
 cafe-hpc = "cafe_app.hpc:main"
 
 [tool.setuptools.packages.find]

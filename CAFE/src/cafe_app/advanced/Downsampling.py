@@ -14,8 +14,6 @@ from utils import validate_path
 st.set_page_config(layout="centered")
 apply_theme()
 
-# Check deployment mode
-IS_WEB = st.session_state.get("cafe_deployment") == "web"
 
 # Reset configuration when freshly navigating to the page
 if st.session_state.get("_page_changed"):
@@ -119,109 +117,103 @@ def process_directory_parallel(
 
 st.subheader("Downsampling Tools")
 
-# Disable filesystem access on web
-if IS_WEB:
-    st.warning(
-        "This module is only available for offline use. Please download the App from https://github.com/mhbsiam/cafe/releases and run it locally."
-    )
-else:
-    # Step 1: Choose downsampling method
-    st.caption("Choose a method, then press Continue to configure it.")
-    method_label = st.radio(
-        "Downsampling method",
-        [
-            "Uniform (preserve distribution)",
-            "Density-weighted (enrich dominant populations)",
-            "Inverse-density (enrich rare populations)",
-        ],
-        help="Uniform keeps relative frequencies intact and is required before frequency-based group "
-        "comparisons. Density-weighted (the original CAFE method) enriches dominant populations and "
-        "drops rare cells/outliers. Inverse-density boosts rare populations for clustering/visualization. "
-        "Both density methods distort relative frequencies.",
-    )
-    method = {
-        "Uniform (preserve distribution)": "uniform",
-        "Density-weighted (enrich dominant populations)": "density_weighted",
-        "Inverse-density (enrich rare populations)": "inverse_density",
-    }[method_label]
+# Step 1: Choose downsampling method
+st.caption("Choose a method, then press Continue to configure it.")
+method_label = st.radio(
+    "Downsampling method",
+    [
+        "Uniform (preserve distribution)",
+        "Density-weighted (enrich dominant populations)",
+        "Inverse-density (enrich rare populations)",
+    ],
+    help="Uniform keeps relative frequencies intact and is required before frequency-based group "
+    "comparisons. Density-weighted (the original CAFE method) enriches dominant populations and "
+    "drops rare cells/outliers. Inverse-density boosts rare populations for clustering/visualization. "
+    "Both density methods distort relative frequencies.",
+)
+method = {
+    "Uniform (preserve distribution)": "uniform",
+    "Density-weighted (enrich dominant populations)": "density_weighted",
+    "Inverse-density (enrich rare populations)": "inverse_density",
+}[method_label]
 
 
-    if not st.session_state.get("downsampling_configured"):
-        if st.button("Continue", type="primary"):
-            st.session_state["downsampling_configured"] = True
-            st.rerun()
+if not st.session_state.get("downsampling_configured"):
+    if st.button("Continue", type="primary"):
+        st.session_state["downsampling_configured"] = True
+        st.rerun()
 
-    # Step 2: Configure sampling details
-    if st.session_state.get("downsampling_configured"):
-        with st.expander("Data I/O", expanded=True):
-            st.caption("Paths to the folder of CSV files to downsample, and where to write the outputs.")
-            input_directory = st.text_input("Enter the input directory:", "")
-            output_directory = st.text_input("Enter the output directory:", "")
+# Step 2: Configure sampling details
+if st.session_state.get("downsampling_configured"):
+    with st.expander("Data I/O", expanded=True):
+        st.caption("Paths to the folder of CSV files to downsample, and where to write the outputs.")
+        input_directory = st.text_input("Enter the input directory:", "")
+        output_directory = st.text_input("Enter the output directory:", "")
 
-        with st.expander("Sampling", expanded=True):
-            st.caption("Target cell count per file. Files that already have fewer cells are copied unchanged.")
-            n_samples = st.number_input(
-                "Enter the number of samples to downsample:",
-                min_value=100,
-                max_value=100000,
-                value=50000,
-                step=100,
+    with st.expander("Sampling", expanded=True):
+        st.caption("Target cell count per file. Files that already have fewer cells are copied unchanged.")
+        n_samples = st.number_input(
+            "Enter the number of samples to downsample:",
+            min_value=100,
+            max_value=100000,
+            value=50000,
+            step=100,
+        )
+
+    # Density-only controls
+    if method in ("density_weighted", "inverse_density"):
+        with st.expander("Density estimation", expanded=True):
+            st.caption(
+                "PCA reduces the marker space before KDE estimates local density. "
+                "More components capture more biological detail but increase compute time. "
+                "Set markers to match the number of marker columns in your CSV (excluding metadata)."
             )
+            n_components = st.slider("Select number of PCA components:", 2, 10, 5)
+            n_markers = st.slider("Select number of markers (columns):", 5, 50, 20)
+    else:
+        n_components, n_markers = 5, 20
 
-        # Density-only controls
-        if method in ("density_weighted", "inverse_density"):
-            with st.expander("Density estimation", expanded=True):
-                st.caption(
-                    "PCA reduces the marker space before KDE estimates local density. "
-                    "More components capture more biological detail but increase compute time. "
-                    "Set markers to match the number of marker columns in your CSV (excluding metadata)."
+    with st.expander("Parallelism", expanded=True):
+        st.caption("Number of CPU cores to use for parallel file processing. –1 uses all available cores.")
+        n_jobs = st.slider(
+            "Select the number of jobs (parallel processing cores):", -1, 4, -1
+        )
+
+    if st.button("Apply", type="primary"):
+        with st.spinner("The program is running...."):
+            if input_directory and output_directory:
+                # Validate paths
+                try:
+                    input_directory = validate_path(input_directory)
+                    output_directory = validate_path(output_directory)
+                except ValueError as e:
+                    st.error(str(e))
+                    st.stop()
+
+                if not os.path.isdir(input_directory):
+                    st.error(f"Input directory '{input_directory}' does not exist or is not a directory.")
+                    st.stop()
+
+                if not os.path.exists(output_directory):
+                    os.makedirs(output_directory)
+
+                elapsed_time, skipped_files = process_directory_parallel(
+                    input_directory,
+                    output_directory,
+                    method,
+                    n_components,
+                    n_markers,
+                    n_samples,
+                    n_jobs,
                 )
-                n_components = st.slider("Select number of PCA components:", 2, 10, 5)
-                n_markers = st.slider("Select number of markers (columns):", 5, 50, 20)
-        else:
-            n_components, n_markers = 5, 20
 
-        with st.expander("Parallelism", expanded=True):
-            st.caption("Number of CPU cores to use for parallel file processing. –1 uses all available cores.")
-            n_jobs = st.slider(
-                "Select the number of jobs (parallel processing cores):", -1, 4, -1
-            )
-
-        if st.button("Apply", type="primary"):
-            with st.spinner("The program is running...."):
-                if input_directory and output_directory:
-                    # Validate paths
-                    try:
-                        input_directory = validate_path(input_directory)
-                        output_directory = validate_path(output_directory)
-                    except ValueError as e:
-                        st.error(str(e))
-                        st.stop()
-
-                    if not os.path.isdir(input_directory):
-                        st.error(f"Input directory '{input_directory}' does not exist or is not a directory.")
-                        st.stop()
-
-                    if not os.path.exists(output_directory):
-                        os.makedirs(output_directory)
-
-                    elapsed_time, skipped_files = process_directory_parallel(
-                        input_directory,
-                        output_directory,
-                        method,
-                        n_components,
-                        n_markers,
-                        n_samples,
-                        n_jobs,
+                st.write(
+                    f"Processing complete. Elapsed time: {elapsed_time:.2f} seconds"
+                )
+                if skipped_files:
+                    st.info(
+                        f"{len(skipped_files)} file(s) had fewer than {n_samples} cells and were copied "
+                        f"without downsampling: {', '.join(skipped_files)}"
                     )
-
-                    st.write(
-                        f"Processing complete. Elapsed time: {elapsed_time:.2f} seconds"
-                    )
-                    if skipped_files:
-                        st.info(
-                            f"{len(skipped_files)} file(s) had fewer than {n_samples} cells and were copied "
-                            f"without downsampling: {', '.join(skipped_files)}"
-                        )
-                else:
-                    st.error("Please provide both input and output directories.")
+            else:
+                st.error("Please provide both input and output directories.")

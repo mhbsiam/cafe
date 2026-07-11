@@ -156,7 +156,7 @@ _PREMIUM_CSS = f"""
 [data-testid="edit-theme"] {{ display: none !important; }}
 
 /* All motion lives behind this query, so reduced-motion users get the app with
-   no animation at all — the accessible default, no separate override needed. */
+   no animation at all. This is the accessible default, so no separate override is needed. */
 @media (prefers-reduced-motion: no-preference) {{
 
   /* --- Buttons: lift on hover, press down on click ------------------------ */
@@ -188,7 +188,7 @@ _PREMIUM_CSS = f"""
   /* --- Progress bar: ease the fill, and run a quiet sheen across it ------- */
   /* Heavy steps (neighbors / UMAP / Leiden) can sit at the same percentage
      for a while. A slow light sheen travelling over the fill signals "still
-     working" without the jitter of a spinner — reassurance, not decoration. */
+     working" without the jitter of a spinner. It provides reassurance, not decoration. */
   [data-testid="stMain"] [data-baseweb="progress-bar"] div div {{
     transition: width var(--cafe-duration-progress) var(--cafe-expo);
     background-image: linear-gradient(

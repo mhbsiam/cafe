@@ -2,7 +2,7 @@
 
 This document accompanies the dependency bump from **Streamlit 1.41.0 → 1.58.0** and
 records (a) what changed for CAFE, and (b) the newer Streamlit capabilities worth adopting
-in follow-up work. No feature below is implemented yet — this is a prioritized backlog.
+in follow-up work. No feature below is implemented yet. This is a prioritized backlog.
 
 ## Why the scientific stack did not move
 
@@ -25,26 +25,26 @@ functions, no deprecated APIs), so **no code changes were required** to run on 1
 **Server change (main validation item):** 1.58 replaces Tornado with **Starlette/Uvicorn**
 by default (tornado is no longer a dependency). CAFE only configures
 `--server.maxUploadSize` (3000 MB desktop / 2000 MB web) and a theme, so nothing needed
-migration — but **large-CSV upload over the new server is the #1 thing to smoke-test**.
+migration, but **large-CSV upload over the new server is the #1 thing to smoke-test**.
 
 **Free wins from 1.58:**
-- Fragment apps no longer crash on stale auto-reruns (#15130) — matters for our 36
+- Fragment apps no longer crash on stale auto-reruns (#15130). This matters for our 36
   fragments.
 - Tables / dataframes / data-editors no longer overscroll (#15309).
 - `st.selectbox` no longer hides its first option at exactly seven selections (#14997).
 - Faster startup (reduced external-IP-lookup timeout).
 
 **Behavioral changes to re-check:**
-- Widget/icon sizing is more consistent (#15056, #15098) — we ship custom CSS in
+- Widget/icon sizing is more consistent (#15056, #15098). We ship custom CSS in
   `bin/theme.py`; do a visual pass for spacing/layout regressions.
-- `st.multiselect` disables "Select all" for very large option lists (#15301) — our marker
+- `st.multiselect` disables "Select all" for very large option lists (#15301). Our marker
   multiselects can carry 20–100+ options.
-- `st.markdown` now blocks `javascript:`/`vbscript:` links — low risk; glance at any custom
+- `st.markdown` now blocks `javascript:`/`vbscript:` links. This is low risk; glance at any custom
   HTML markdown.
 
 ## Feature adoption backlog (prioritized)
 
-### 1. `@st.fragment(parallel=True)` — recommended first (new in 1.58)
+### 1. `@st.fragment(parallel=True)`: recommended first (new in 1.58)
 Lets per-tab fragment computations run **concurrently** for snappier tab switching. CAFE
 already groups its 36 `@st.fragment` render functions under 8 `st.tabs()` blocks:
 
@@ -78,7 +78,7 @@ Pin the hottest of the 31 scattered `st.download_button` / apply controls into a
 persistent footer so users don't scroll up to re-download.
 
 ### 5. `type` param on `st.expander` / `st.status` (new in 1.58)
-Cheap visual polish — a more compact style for CAFE's expanders/status blocks
+Cheap visual polish: a more compact style for CAFE's expanders/status blocks
 (e.g. `Data_Processing.py:219, 257`).
 
 ## Roadmap: the numpy-2 migration (unlocks the rest)

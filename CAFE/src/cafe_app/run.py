@@ -15,9 +15,12 @@ import streamlit as st
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 
 from theme import apply_theme
+from session_store import ensure_token, restore_session_adata, render_clear_control
 
-# Deployment-mode flag: 'desktop' for local app, 'web' for hosted.
-st.session_state.setdefault('cafe_deployment', 'desktop')
+# Refresh-persistence: mint a per-session token (survives refresh via the URL) and, if the browser was
+# refreshed, restore the loaded AnnData from disk before any page runs.
+ensure_token()
+restore_session_adata()
 
 page1 = st.Page("app/CAFE.py", default=True)
 page2 = st.Page("tools/Data_Processing.py")
@@ -41,6 +44,10 @@ pg = st.navigation(
 # Expose _page_changed (True only on the first run after navigating to a different page).
 st.session_state['_page_changed'] = st.session_state.get('_active_page') != pg.url_path
 st.session_state['_active_page'] = pg.url_path
+
+# Render the sidebar Clear control before pg.run() so pages that call st.stop() (e.g. every Data Processing
+# step) can't skip it.
+render_clear_control()
 
 pg.run()
 

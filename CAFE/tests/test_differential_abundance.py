@@ -31,11 +31,11 @@ def _da_dataset(scale=1):
     """5 samples/group, 2 groups, 3 clusters (100 cells/sample before scaling).
 
     Cluster 'A' is strongly enriched in Disease (10% vs 50%), cluster 'B' is its
-    complement (enriched in Healthy), and cluster 'C' is genuinely balanced —
+    complement (enriched in Healthy), and cluster 'C' is genuinely balanced.
     its per-sample proportions overlap between groups, so it must NOT come out
     significant.  (With only two clusters a "balanced" one is impossible, since
     proportions sum to 1.)  ``scale`` multiplies all cell counts without
-    changing proportions — used for the pseudoreplication regression check.
+    changing proportions. This is used for the pseudoreplication regression check.
     """
     c_healthy = [30, 28, 32, 29, 31]
     c_disease = [31, 29, 33, 28, 30]
@@ -98,7 +98,7 @@ class TestDifferentialAbundanceTest:
         """The core pseudoreplication regression check.
 
         Scaling all cell counts 1000x leaves proportions unchanged, so a
-        sample-level test must return identical p-values — unlike the old
+        sample-level test must return identical p-values, unlike the old
         per-cell chi-square whose p-value would collapse toward 0.
         """
         small = _da_dataset(scale=1)

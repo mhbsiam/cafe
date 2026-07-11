@@ -289,7 +289,7 @@ def _render_marker_profile(adata, rows):
 def render_embedding_explorer(adata, key_prefix="umap_explorer"):
     """Render the interactive embedding explorer; no-ops with a hint if no UMAP yet. Never mutates adata or writes files."""
     if "X_umap" not in adata.obsm:
-        st.info("Compute a UMAP embedding first — the interactive explorer will appear here.")
+        st.info("Compute a UMAP embedding first. The interactive explorer will appear here.")
         return
 
     coords_all = np.asarray(adata.obsm["X_umap"])[:, :2]

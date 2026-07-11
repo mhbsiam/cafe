@@ -1,4 +1,4 @@
-"""Dev entry point for the hosted (web) layout — used by ``pixi run web``.
+"""Dev entry point for the hosted (web) layout, used by ``pixi run web``.
 
 Thin wrapper around ``cafe_app.launcher`` so there is a single launch code path.
 """
