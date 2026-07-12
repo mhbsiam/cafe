@@ -150,7 +150,7 @@ Finally, while reporting data generated using CAFE, mentioning the operating sys
 
 Original codes were refactored using Devin CLI and Claude Code. New design aesthetics were implemented following 'impeccable' design.
 
-CAFE's batch-effect check (per-marker Earth Mover's Distance between batches) was inspired by the evaluation approach in CytoNorm (Van Gassen et al., *Cytometry Part A* 97:268–278, 2020, [doi:10.1002/cyto.a.23904](https://doi.org/10.1002/cyto.a.23904); Quintelier et al., *Cytometry Part A*, 2025, [doi:10.1002/cyto.a.24910](https://doi.org/10.1002/cyto.a.24910)) and its Python port [CytoNormPy](https://github.com/TarikExner/CytoNormPy). CAFE implements this metric independently using SciPy and does not include CytoNorm/CytoNormPy code.
+CAFE's batch-effect check (per-marker Earth Mover's Distance between batches) was inspired by the evaluation approach in CytoNorm (Van Gassen et al., *Cytometry Part A* 97:268–278, 2020, [doi:10.1002/cyto.a.23904](https://doi.org/10.1002/cyto.a.23904); Quintelier et al., *Cytometry Part A*, 2025, [doi:10.1002/cyto.a.24910](https://doi.org/10.1002/cyto.a.24910)) and its Python port [CytoNormPy](https://github.com/TarikExner/CytoNormPy). CAFE implements this metric independently using SciPy.
 
 ## Citation
 
