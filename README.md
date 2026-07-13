@@ -30,8 +30,8 @@ Click [here](https://mhbsiam.github.io/cafe) to access the guide for installatio
 
 
 ##
-## Quick Installation and Running CAFE
-### Recommended: Install using uv
+## Quick Installation and Running CAFE (Recommended)
+### Install using uv
 First, open your Terminal app on Mac/Linux, or Powershell on WIndows:
 
 **1. Install uv:** (skip this step if you already have uv installed)
@@ -44,13 +44,13 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 Restart your terminal afterwards so that `uv` command is found.
 
-**2. Install CAFE directly from GitHub:** (install it directly from the repository):
+**2. Install CAFE directly from GitHub:** (copy & paste the following code in terminal):
 ```bash
 uv tool install "git+https://github.com/mhbsiam/cafe"
 ```
 
 **3. Run CAFE using uv:**
-Just open a terminal anywhere and run:
+Once Cafe is installed using uv, just open a terminal anywhere and type:
 
 ```bash
 cafe
@@ -68,7 +68,6 @@ uv tool uninstall cafe-app
 
 ##
 ## Alternative Installation Processes:
-## Manually Download CAFE from GitHub
 
 ### Download the tool as a ZIP file
 1. Click the [Releases](https://github.com/mhbsiam/cafe/releases) button on the right side of this page.
