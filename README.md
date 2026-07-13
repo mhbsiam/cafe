@@ -59,7 +59,7 @@ This should automatically open the CAFE tool in a web browser. The initial setup
 
 **4. If a newer version exists, updating CAFE to a newer version:**
 ```bash
-uv tool install --force "git+https://github.com/mhbsiam/cafe"
+uv tool upgrade cafe-app
 ```
 **5. To uninstall CAFE:**
 ```bash
