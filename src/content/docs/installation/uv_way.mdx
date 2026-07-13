@@ -71,30 +71,6 @@ the same commands work with `pipx install` / `pipx uninstall` in place of
 `uv tool install` / `uv tool uninstall`.
 :::
 
-## Install from a local wheel
-
-If you downloaded the repository (or a prebuilt `.whl`), you can install from
-your local copy instead.
-
-Build a wheel from the source folder:
-
-```bash
-uv build --wheel
-```
-
-This writes a file such as `dist/cafe_app-3.0.0-py3-none-any.whl`. Install it
-with:
-
-```bash
-uv tool install dist/cafe_app-3.0.0-py3-none-any.whl
-```
-
-Or install the source folder directly:
-
-```bash
-uv tool install .
-```
-
 ## Other commands
 
 Installing CAFE also provides an extra command:
