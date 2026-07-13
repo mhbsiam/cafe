@@ -22,7 +22,7 @@ pnpm-debug.log*
 .env.production
 .env.local
 
-# streamlit secrets (config.toml stays tracked)
+# streamlit
 .streamlit/secrets.toml
 
 # OS-specific files
@@ -61,3 +61,6 @@ env/
 .codeium/
 .agents/
 .idea/
+
+# Tests
+CAFE/tests/
