@@ -23,6 +23,7 @@ from cliffs_delta import cliffs_delta
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 from matplotlib.colors import to_hex, to_rgba
 from matplotlib.patches import Patch
+from natsort import natsorted
 from scipy import stats
 from scipy.sparse import issparse
 from scipy.stats import (
@@ -32,7 +33,7 @@ from scipy.stats import (
     ttest_ind,
 )
 
-from _plot_export import deferred_download_button
+from _plot_export import deferred_download_button, plotly_image_bytes
 from embedding_explorer import render_embedding_explorer
 from theme import IMG_DIR, apply_theme, info_card, page_header
 from utils import (
@@ -47,6 +48,33 @@ from utils import (
     MARKER_LOW_THRESHOLD,
 )
 from session_store import set_adata
+
+
+def _has_tiny_groups(adata, groupby):
+    """Drop unused categories, then warn and return True if any group has <2 cells: sc.tl.rank_genes_groups raises on those."""
+    col = adata.obs[groupby]
+    if isinstance(col.dtype, pd.CategoricalDtype) and col.nunique() < len(col.cat.categories):
+        adata.obs[groupby] = col.cat.remove_unused_categories()
+    counts = adata.obs[groupby].value_counts()
+    tiny = counts[counts < 2].index.tolist()
+    if tiny:
+        st.warning(
+            f"Marker ranking skipped: {groupby} group(s) {', '.join(map(str, tiny))} have fewer than 2 cells. "
+            "Merge or remove those clusters to run this analysis."
+        )
+    return bool(tiny)
+
+
+def _plot_categories(col):
+    """Categories in the order scanpy plots them: a categorical keeps its own, strings are natsorted as anndata does."""
+    return list(col.cat.categories) if isinstance(col.dtype, pd.CategoricalDtype) else natsorted(col.unique())
+
+
+def _mime(fmt):
+    """MIME type for a download in the chosen file format."""
+    return {"pdf": "application/pdf", "svg": "image/svg+xml", "png": "image/png",
+            "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(fmt.lower(), "application/octet-stream")
+
 
 apply_theme()
 
@@ -107,12 +135,12 @@ else:
     adata = st.session_state["adata"]
 
 
-missing_cols = [c for c in ("SampleID", "leiden") if c not in adata.obs.columns]
+missing_cols = [c for c in ("SampleID", "Group", "leiden") if c not in adata.obs.columns]
 if missing_cols:
     st.error(
         "This AnnData is missing required column(s) in `.obs`: "
         f"{', '.join(missing_cols)}. Visualization expects a CAFE-processed file "
-        "with 'SampleID' and 'leiden' clustering results."
+        "with 'SampleID', 'Group' and 'leiden' clustering results."
     )
     st.stop()
 
@@ -243,7 +271,7 @@ with st.form(key='All_Markers_Ranking'):
         test_selected = st.radio('Select a statistical test:', ('Parametric (T-test)', 'Non-parametric (Wilcoxon)'))
     submit_button = st.form_submit_button(label='Apply', type="primary")
 
-if submit_button:
+if submit_button and not _has_tiny_groups(adata, 'leiden'):
     method = 't-test' if test_selected == 'Parametric (T-test)' else 'wilcoxon'
 
     sc.tl.rank_genes_groups(adata, 'leiden', method=method)
@@ -256,7 +284,7 @@ if submit_button:
     svg_buffer = BytesIO()
     fig.savefig(svg_buffer, format="svg")
     svg_buffer.seek(0)
-    st.download_button(label="Download Dendrogram", data=svg_buffer, file_name="dendrogram.svg", mime="image/svg+xml")
+    st.download_button(label="Download Dendrogram", data=svg_buffer, file_name="dendrogram.svg", mime="image/svg+xml", on_click="ignore")
     plt.close(fig)
 
     fig1, ax1 = plt.subplots(figsize=(10, 7))
@@ -363,7 +391,7 @@ if submit_button:
     svg_buffer = BytesIO()
     fig2.savefig(svg_buffer, format="svg")
     svg_buffer.seek(0)
-    st.download_button(label="Download Dot Plot", data=svg_buffer, file_name="dotplot.svg", mime="image/svg+xml")
+    st.download_button(label="Download Dot Plot", data=svg_buffer, file_name="dotplot.svg", mime="image/svg+xml", on_click="ignore")
     plt.close(fig2)
 
 st.divider()
@@ -397,13 +425,17 @@ def render_tab1():
 
     if submit_umap:
         def get_palette(cmap_input, num_categories):
-            cmap = plt.get_cmap(cmap_input)
+            cmap = new_cmap if cmap_input == 'tab40bc' else plt.get_cmap(cmap_input)
             if hasattr(cmap, 'colors') and len(cmap.colors) >= num_categories:
                 return cmap.colors[:num_categories]
             else:
                 return [cmap(i / num_categories) for i in range(num_categories)]
 
         color_by = 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
+        # One category -> colour map for the combined and per-group plots, so a group lacking a category keeps the others' colours
+        all_categories = _plot_categories(adata.obs[color_by])
+        color_map = dict(zip(all_categories, get_palette(umap_cmap, len(all_categories))))
+        color_label = 'Cell type' if color_by == 'cell_type' else 'Leiden'
 
         random_number = random.randint(1000, 9999)
         zip_buffer = io.BytesIO()
@@ -411,10 +443,8 @@ def render_tab1():
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
             # UMAP by 'leiden'
             fig1, ax1 = plt.subplots(figsize=(umap_width, umap_height))
-            num_leiden_clusters = adata.obs['leiden'].nunique()
-            palette_leiden = get_palette(umap_cmap, num_leiden_clusters)
             sc.pl.umap(adata, color=color_by, legend_fontsize=8, size=dot_size,
-                       show=False, title='', palette=palette_leiden, ax=ax1, legend_loc='on data')
+                       show=False, title='', palette=color_map, ax=ax1, legend_loc='on data')
             ax1.axis('off')
             st.pyplot(fig1)
 
@@ -422,12 +452,13 @@ def render_tab1():
             fig1.savefig(fig_data, format=umap_file_format.lower(), dpi=300, bbox_inches='tight')
             fig_data.seek(0)
             st.download_button(
-                label=f"Download UMAP Leiden ({umap_file_format.upper()})",
+                label=f"Download UMAP {color_label} ({umap_file_format.upper()})",
                 data=fig_data,
-                file_name=f"UMAP_leiden_{random_number}.{umap_file_format.lower()}",
-                mime=f"image/{umap_file_format.lower()}",
+                file_name=f"UMAP_{color_by}_{random_number}.{umap_file_format.lower()}",
+                mime=_mime(umap_file_format),
+                on_click="ignore",
             )
-            zip_file.writestr(f"UMAP_leiden_{random_number}.{umap_file_format.lower()}", fig_data.getvalue())
+            zip_file.writestr(f"UMAP_{color_by}_{random_number}.{umap_file_format.lower()}", fig_data.getvalue())
             plt.close(fig1)
 
             # UMAP by 'Group'
@@ -446,27 +477,23 @@ def render_tab1():
                 label=f"Download UMAP Group ({umap_file_format.upper()})",
                 data=fig_data,
                 file_name=f"UMAP_group_{random_number}.{umap_file_format.lower()}",
-                mime=f"image/{umap_file_format.lower()}",
+                mime=_mime(umap_file_format),
+                on_click="ignore",
             )
             zip_file.writestr(f"UMAP_group_{random_number}.{umap_file_format.lower()}", fig_data.getvalue())
             plt.close(fig2)
 
             # Individual UMAPs for each group
             unique_groups = adata.obs['Group'].unique()
-            all_leiden_clusters = adata.obs['leiden'].unique()
-            num_all_leiden_clusters = len(all_leiden_clusters)
-            consistent_palette = get_palette(umap_cmap, num_all_leiden_clusters)
-            leiden_color_map = dict(zip(all_leiden_clusters, consistent_palette))
 
             for group_id in unique_groups:
                 adata_group = adata[adata.obs['Group'] == group_id]
-                group_palette = [leiden_color_map[leiden] for leiden in adata_group.obs['leiden'].cat.categories]
 
                 fig, ax = plt.subplots(figsize=(umap_width, umap_height))
                 sc.pl.umap(
                     adata_group,
-                    color='leiden',
-                    palette=group_palette,
+                    color=color_by,
+                    palette=color_map,
                     legend_fontsize=12,
                     size=dot_size,
                     show=False,
@@ -485,7 +512,8 @@ def render_tab1():
                     label=f"Download UMAP {group_id} ({umap_file_format.upper()})",
                     data=fig_data,
                     file_name=f"UMAP_{group_id}_{random_number}.{umap_file_format.lower()}",
-                    mime=f"image/{umap_file_format.lower()}",
+                    mime=_mime(umap_file_format),
+                    on_click="ignore",
                 )
                 zip_file.writestr(f"UMAP_{group_id}_{random_number}.{umap_file_format.lower()}", fig_data.getvalue())
                 plt.close(fig)
@@ -496,6 +524,7 @@ def render_tab1():
             data=zip_buffer,
             file_name=f"UMAP_plots_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 
@@ -582,7 +611,7 @@ def render_tab2():
                 n_cols = num_of_col
                 n_rows = int(np.ceil(len(markers_to_plot) / n_cols))
 
-                fig, axes = plt.subplots(n_rows, n_cols, figsize=(marker_expr_width, marker_expr_height))
+                fig, axes = plt.subplots(n_rows, n_cols, figsize=(marker_expr_width, marker_expr_height), squeeze=False)
                 axes = axes.flatten()
 
                 for i, marker in enumerate(markers_to_plot):
@@ -619,7 +648,8 @@ def render_tab2():
                     label=f"Download Marker Expression UMAP ({marker_expr_file_format.upper()})",
                     data=fig_data,
                     file_name=f"UMAP_MarkerExpression_{random_number}.{marker_expr_file_format.lower()}",
-                    mime=f"image/{marker_expr_file_format.lower()}",
+                    mime=_mime(marker_expr_file_format),
+                    on_click="ignore",
                 )
 
             else:
@@ -637,7 +667,7 @@ def render_tab2():
                         n_cols = num_of_col
                         n_rows = int(np.ceil(len(markers_to_plot) / n_cols))
 
-                        fig, axes = plt.subplots(n_rows, n_cols, figsize=(marker_expr_width, marker_expr_height))
+                        fig, axes = plt.subplots(n_rows, n_cols, figsize=(marker_expr_width, marker_expr_height), squeeze=False)
                         axes = axes.flatten()
 
                         for i, marker in enumerate(markers_to_plot):
@@ -674,7 +704,8 @@ def render_tab2():
                             label=f"Download Marker Expression UMAP for {group} ({marker_expr_file_format.upper()})",
                             data=fig_data,
                             file_name=f"UMAP_MarkerExpression_{group}_{random_number}.{marker_expr_file_format.lower()}",
-                            mime=f"image/{marker_expr_file_format.lower()}",
+                            mime=_mime(marker_expr_file_format),
+                            on_click="ignore",
                         )
 
                         progress.progress((idx + 1) / len(groups))
@@ -747,6 +778,9 @@ def render_tab3():
         submit_umap = st.form_submit_button("Plot UMAP", type="primary")
 
     if submit_umap:
+        if not selected_clusters:
+            st.warning("Select at least one cluster to plot.")
+            return
         cluster_mask = adata.obs[cluster_col].isin(selected_clusters)
         adata_subset = adata[cluster_mask, :]  # Subsetting the data to include only the selected clusters
 
@@ -796,7 +830,8 @@ def render_tab3():
                 label=f"Download UMAP ({umap_file_format.upper()})",
                 data=fig_data,
                 file_name=f"UMAP_{cluster_col}__marker_{selected_marker}_{random_number}.{umap_file_format.lower()}",
-                mime=f"image/{umap_file_format.lower()}",
+                mime=_mime(umap_file_format),
+                on_click="ignore",
             )
 
 
@@ -906,6 +941,7 @@ def render_tab4():
             data=fig_data,
             file_name=f"Group_Comparison_UMAP_{selected_group1}_vs_{selected_group2}_{selected_marker}_{random_number}.png",
             mime="image/png",
+            on_click="ignore",
         )
 
 
@@ -936,11 +972,23 @@ def render_tab5():
         submit_frequency_table = st.form_submit_button("Plot UMAP of each sample", type="primary")
 
     if submit_frequency_table:
-        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().reset_index(name='Frequency')
+        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().loc[lambda c: c > 0].reset_index(name='Frequency')  # categoricals add zero-count pairs
         updated_frequency_table_dropped = frequency_table.drop(columns=['Frequency'])
         dictionary = dict(zip(updated_frequency_table_dropped['SampleID'], updated_frequency_table_dropped['Group']))
         ordered_samples = list(dictionary.keys())
         random_number = random.randint(1000, 9999)
+        color_by = 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
+        # One category -> colour map from the full data, so a sample lacking a category keeps the others' colours
+        leiden_cats = _plot_categories(adata.obs[color_by])
+        leiden_colors = adata.uns.get(f'{color_by}_colors', [])
+        if len(leiden_colors) != len(leiden_cats):
+            # First palette long enough, in the same order of preference as scanpy's own categorical defaults
+            n = len(leiden_cats)
+            for leiden_colors in (plt.rcParams['axes.prop_cycle'].by_key()['color'], sc.pl.palettes.default_20,
+                                  sc.pl.palettes.default_28, sc.pl.palettes.default_102, ['grey'] * n):
+                if len(leiden_colors) >= n:
+                    break
+        leiden_color_map = dict(zip(leiden_cats, leiden_colors))
 
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
@@ -950,7 +998,8 @@ def render_tab5():
                 fig, ax = plt.subplots(figsize=(plot_width, plot_height))
                 sc.pl.umap(
                     adata_group,
-                    color='leiden',
+                    color=color_by,
+                    palette=leiden_color_map,
                     legend_fontsize=6,
                     size=dot_size,
                     show=False,
@@ -975,7 +1024,8 @@ def render_tab5():
                     label=f"Download UMAP for {sample_id} ({group_table_file_format.upper()})",
                     data=fig_data,
                     file_name=f"UMAP_{sample_id}_{random_number}.{group_table_file_format.lower()}",
-                    mime=f"image/{group_table_file_format.lower()}",
+                    mime=_mime(group_table_file_format),
+                    on_click="ignore",
                 )
 
                 zip_file.writestr(
@@ -989,6 +1039,7 @@ def render_tab5():
             data=zip_buffer,
             file_name=f"All_UMAPs_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 if tab5.open:
@@ -1018,6 +1069,7 @@ def render_tab19():
             selected_cluster_3 = st.selectbox(f"Select {cluster_col.capitalize()} Cluster 3", options=adata.obs[cluster_col].unique(), key='cluster_3')
 
         central_tendency = st.radio("Select Central Tendency Calculation Method", ["Mean", "Median"], key='central_tendency')
+        test_selected = st.radio('Select a statistical test:', ('Parametric (T-test)', 'Non-parametric (Wilcoxon)'), key='test_19')
 
         submit_button = st.form_submit_button(label='Submit', type="primary")
 
@@ -1090,19 +1142,22 @@ def render_tab19():
         st.subheader(f'Marker Profile Based on Central Tendency')
         st.plotly_chart(fig)
 
-        central_tendency_buffer = io.BytesIO()
-        fig.write_image(central_tendency_buffer, format="png")
-        central_tendency_buffer.seek(0)
-        plot_buffers.append(("Central_Tendency_Bar_Plot", central_tendency_buffer))
+        central_tendency_bytes = plotly_image_bytes(fig, "png")
+        if central_tendency_bytes is not None:
+            central_tendency_buffer = io.BytesIO(central_tendency_bytes)
+            plot_buffers.append(("Central_Tendency_Bar_Plot", central_tendency_buffer))
 
-        st.download_button(
-            label=f"Download Central Tendency Bar Plot (PNG)",
-            data=central_tendency_buffer,
-            file_name=f"CentralTendency_BarPlot_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label=f"Download Central Tendency Bar Plot (PNG)",
+                data=central_tendency_buffer,
+                file_name=f"CentralTendency_BarPlot_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
         method = 't-test' if test_selected == 'Parametric (T-test)' else 'wilcoxon'
+        if _has_tiny_groups(adata, cluster_col):
+            return
         sc.tl.rank_genes_groups(adata, cluster_col, method=method)
 
         ranked_markers_1 = adata.uns['rank_genes_groups']['names'][selected_cluster_1]
@@ -1164,17 +1219,18 @@ def render_tab19():
         st.subheader(f'Ranked Markers Comparison')
         st.plotly_chart(fig3)
 
-        ranked_markers_buffer = io.BytesIO()
-        fig3.write_image(ranked_markers_buffer, format="png")
-        ranked_markers_buffer.seek(0)
-        plot_buffers.append(("Ranked_Markers_Bar_Plot", ranked_markers_buffer))
+        ranked_markers_bytes = plotly_image_bytes(fig3, "png")
+        if ranked_markers_bytes is not None:
+            ranked_markers_buffer = io.BytesIO(ranked_markers_bytes)
+            plot_buffers.append(("Ranked_Markers_Bar_Plot", ranked_markers_buffer))
 
-        st.download_button(
-            label=f"Download Ranked Markers Bar Plot (PNG)",
-            data=ranked_markers_buffer,
-            file_name=f"RankedMarkers_BarPlot_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label=f"Download Ranked Markers Bar Plot (PNG)",
+                data=ranked_markers_buffer,
+                file_name=f"RankedMarkers_BarPlot_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
         csv_buffer = io.BytesIO()
         rank_df.to_csv(csv_buffer, index=False)
@@ -1186,6 +1242,7 @@ def render_tab19():
             data=csv_buffer,
             file_name=f"RankedMarkers_Data_{random_number}.csv",
             mime="text/csv",
+            on_click="ignore",
         )
 
         zip_buffer = io.BytesIO()
@@ -1207,6 +1264,7 @@ def render_tab19():
             data=zip_buffer,
             file_name=f"All_Results_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 
@@ -1361,33 +1419,36 @@ def render_tab21():
 
         st.plotly_chart(fig)
 
-        cluster_expression_buffer = io.BytesIO()
-        fig.write_image(cluster_expression_buffer, format="png")
-        cluster_expression_buffer.seek(0)
-        plot_buffers.append(("Cluster_Expression_Plot", cluster_expression_buffer))
+        cluster_expression_bytes = plotly_image_bytes(fig, "png")
+        if cluster_expression_bytes is not None:
+            cluster_expression_buffer = io.BytesIO(cluster_expression_bytes)
+            plot_buffers.append(("Cluster_Expression_Plot", cluster_expression_buffer))
 
-        st.download_button(
-            label=f"Download Marker Expression Plot (PNG)",
-            data=cluster_expression_buffer,
-            file_name=f"MarkerExpression_Plot_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label=f"Download Marker Expression Plot (PNG)",
+                data=cluster_expression_buffer,
+                file_name=f"MarkerExpression_Plot_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for plot_name, plot_buffer in plot_buffers:
-                zip_file.writestr(
-                    f"{plot_name}_{random_number}.png",
-                    plot_buffer.getvalue(),
-                )
-        zip_buffer.seek(0)
+        if plot_buffers:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                for plot_name, plot_buffer in plot_buffers:
+                    zip_file.writestr(
+                        f"{plot_name}_{random_number}.png",
+                        plot_buffer.getvalue(),
+                    )
+            zip_buffer.seek(0)
 
-        st.download_button(
-            label="Download All Plots as ZIP",
-            data=zip_buffer,
-            file_name=f"All_MarkerExpression_Plots_{random_number}.zip",
-            mime="application/zip",
-        )
+            st.download_button(
+                label="Download All Plots as ZIP",
+                data=zip_buffer,
+                file_name=f"All_MarkerExpression_Plots_{random_number}.zip",
+                mime="application/zip",
+                on_click="ignore",
+            )
 
 
 @st.fragment
@@ -1416,7 +1477,8 @@ def render_tab22():
         plot_buffers = []
 
         freq_long = compute_sample_frequencies_long(adata, cluster_col)
-        cell_counts = freq_long[freq_long['Group'].isin([group1, group2])]
+        # plain values: seaborn maps every category of a categorical hue, including groups left out of hue_order
+        cell_counts = freq_long[freq_long['Group'].isin([group1, group2])].astype({'Group': object})
         hue_order = [group1, group2]
 
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -1448,7 +1510,8 @@ def render_tab22():
             label=f"Download Cell Count Plot ({plot_file_format.upper()})",
             data=plot_buffer,
             file_name=f"CellCount_celltype_byGroup_{random_number}.{plot_file_format.lower()}",
-            mime=f"image/{plot_file_format.lower()}",
+            mime=_mime(plot_file_format),
+            on_click="ignore",
         )
 
 
@@ -1541,6 +1604,9 @@ def render_tab23():
             submit_sankey = st.form_submit_button(label='Generate Sankey Diagram', type="primary")
 
     if submit_sankey:
+        if adata.obs['Group'].nunique() < 2:
+            st.warning("The Sankey diagram needs at least two groups (a control and a treatment group).")
+            return
         random_number = random.randint(1000, 9999)
         plot_buffers = []
 
@@ -1550,17 +1616,18 @@ def render_tab23():
 
         st.plotly_chart(alluvial_fig)
 
-        sankey_buffer = io.BytesIO()
-        alluvial_fig.write_image(sankey_buffer, format="png")
-        sankey_buffer.seek(0)
-        plot_buffers.append(("Sankey_Plot", sankey_buffer))
+        sankey_bytes = plotly_image_bytes(alluvial_fig, "png")
+        if sankey_bytes is not None:
+            sankey_buffer = io.BytesIO(sankey_bytes)
+            plot_buffers.append(("Sankey_Plot", sankey_buffer))
 
-        st.download_button(
-            label=f"Download Sankey Plot (PNG)",
-            data=sankey_buffer,
-            file_name=f"SankeyPlot_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label=f"Download Sankey Plot (PNG)",
+                data=sankey_buffer,
+                file_name=f"SankeyPlot_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
 
 
@@ -1638,17 +1705,18 @@ def render_tab24():
 
         st.plotly_chart(fig)
 
-        sankey_buffer = io.BytesIO()
-        fig.write_image(sankey_buffer, format="pdf")
-        sankey_buffer.seek(0)
-        plot_buffers.append(("Sankey_Comparison", sankey_buffer))
+        sankey_bytes = plotly_image_bytes(fig, "pdf")
+        if sankey_bytes is not None:
+            sankey_buffer = io.BytesIO(sankey_bytes)
+            plot_buffers.append(("Sankey_Comparison", sankey_buffer))
 
-        st.download_button(
-            label=f"Download Sankey Plot (PDF)",
-            data=sankey_buffer,
-            file_name=f"SankeyComparison_{random_number}.pdf",
-            mime="application/pdf",
-        )
+            st.download_button(
+                label=f"Download Sankey Plot (PDF)",
+                data=sankey_buffer,
+                file_name=f"SankeyComparison_{random_number}.pdf",
+                mime="application/pdf",
+                on_click="ignore",
+            )
 
 
 
@@ -1717,6 +1785,7 @@ def render_tab25():
             data=kde_plot1_buffer,
             file_name=f"2D_KDE_Plot_{marker1}_vs_{marker2}_{random_number}.png",
             mime="image/png",
+            on_click="ignore",
         )
 
         if hue_option:
@@ -1751,6 +1820,7 @@ def render_tab25():
                 data=kde_plot2_buffer,
                 file_name=f"Enhanced_KDE_Plot_{marker1}_vs_{marker2}_by_{hue_option}_{random_number}.png",
                 mime="image/png",
+                on_click="ignore",
             )
 
         zip_buffer = io.BytesIO()
@@ -1767,6 +1837,7 @@ def render_tab25():
             data=zip_buffer,
             file_name=f"KDE_Plots_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 
@@ -1820,17 +1891,18 @@ def render_tab26():
 
         st.plotly_chart(fig)
 
-        plot_buffer = io.BytesIO()
-        fig.write_image(plot_buffer, format=plot_file_format.lower(), engine='kaleido')
-        plot_buffer.seek(0)
-        plot_buffers.append(("ClusterVsCells_BarPlot", plot_buffer))
+        plot_bytes = plotly_image_bytes(fig, plot_file_format.lower(), engine='kaleido')
+        if plot_bytes is not None:
+            plot_buffer = io.BytesIO(plot_bytes)
+            plot_buffers.append(("ClusterVsCells_BarPlot", plot_buffer))
 
-        st.download_button(
-            label=f"Download Cluster vs Cells Plot ({plot_file_format.upper()})",
-            data=plot_buffer,
-            file_name=f"ClusterVsCellsPlot_{random_number}.{plot_file_format.lower()}",
-            mime=f"image/{plot_file_format.lower()}",
-        )
+            st.download_button(
+                label=f"Download Cluster vs Cells Plot ({plot_file_format.upper()})",
+                data=plot_buffer,
+                file_name=f"ClusterVsCellsPlot_{random_number}.{plot_file_format.lower()}",
+                mime=_mime(plot_file_format),
+                on_click="ignore",
+            )
 
 
 
@@ -1923,10 +1995,10 @@ def render_tab27():
 
         st.plotly_chart(fig)
 
-        bar_plot_buffer = io.BytesIO()
-        fig.write_image(bar_plot_buffer, format="png", engine="kaleido")
-        bar_plot_buffer.seek(0)
-        plot_buffers.append(("RelativeAbundance_Comparison", bar_plot_buffer))
+        bar_plot_bytes = plotly_image_bytes(fig, "png", engine="kaleido")
+        if bar_plot_bytes is not None:
+            bar_plot_buffer = io.BytesIO(bar_plot_bytes)
+            plot_buffers.append(("RelativeAbundance_Comparison", bar_plot_buffer))
 
         # Second bar plot
         overall_means = adata.X.mean(axis=0)
@@ -1966,40 +2038,46 @@ def render_tab27():
 
         st.plotly_chart(fig_comparison)
 
-        comparison_plot_buffer = io.BytesIO()
-        fig_comparison.write_image(comparison_plot_buffer, format="png", engine="kaleido")
-        comparison_plot_buffer.seek(0)
-        plot_buffers.append(("AllMarkers_RelativeAbundance", comparison_plot_buffer))
+        comparison_plot_bytes = plotly_image_bytes(fig_comparison, "png", engine="kaleido")
+        if comparison_plot_bytes is not None:
+            comparison_plot_buffer = io.BytesIO(comparison_plot_bytes)
+            plot_buffers.append(("AllMarkers_RelativeAbundance", comparison_plot_buffer))
 
-        st.download_button(
-            label=f"Download Relative Abundance Plot (Cluster Comparison)",
-            data=bar_plot_buffer,
-            file_name=f"RelativeAbundance_Comparison_{random_number}.png",
-            mime="image/png",
-        )
+        if bar_plot_bytes is not None:
+            st.download_button(
+                label=f"Download Relative Abundance Plot (Cluster Comparison)",
+                data=bar_plot_buffer,
+                file_name=f"RelativeAbundance_Comparison_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
-        st.download_button(
-            label=f"Download Relative Abundance Plot (All Markers)",
-            data=comparison_plot_buffer,
-            file_name=f"AllMarkers_RelativeAbundance_{random_number}.png",
-            mime="image/png",
-        )
+        if comparison_plot_bytes is not None:
+            st.download_button(
+                label=f"Download Relative Abundance Plot (All Markers)",
+                data=comparison_plot_buffer,
+                file_name=f"AllMarkers_RelativeAbundance_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for plot_name, plot_buffer in plot_buffers:
-                zip_file.writestr(
-                    f"{plot_name}_{random_number}.png",
-                    plot_buffer.getvalue(),
-                )
-        zip_buffer.seek(0)
+        if plot_buffers:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                for plot_name, plot_buffer in plot_buffers:
+                    zip_file.writestr(
+                        f"{plot_name}_{random_number}.png",
+                        plot_buffer.getvalue(),
+                    )
+            zip_buffer.seek(0)
 
-        st.download_button(
-            label="Download All Plots as ZIP",
-            data=zip_buffer,
-            file_name=f"RelativeAbundance_Plots_{random_number}.zip",
-            mime="application/zip",
-        )
+            st.download_button(
+                label="Download All Plots as ZIP",
+                data=zip_buffer,
+                file_name=f"RelativeAbundance_Plots_{random_number}.zip",
+                mime="application/zip",
+                on_click="ignore",
+            )
 
         st.write(f"Total number of cells in Cluster {selected_cluster_1}: {total_cells_cluster_1}")
         st.write(f"Total number of cells in Cluster {selected_cluster_2}: {total_cells_cluster_2}")
@@ -2048,7 +2126,8 @@ def render_tab28():
                 label=f"Download Correlation Matrix Plot ({correlation_matrix_plot_file_format.upper()})",
                 data=correlation_matrix_buffer,
                 file_name=f"CorrelationMatrix_{random_number}.{correlation_matrix_plot_file_format.lower()}",
-                mime=f"image/{correlation_matrix_plot_file_format.lower()}",
+                mime=_mime(correlation_matrix_plot_file_format),
+                on_click="ignore",
             )
 
 
@@ -2101,17 +2180,18 @@ def render_tab29():
 
         st.plotly_chart(fig_bar)
 
-        bar_plot_buffer = io.BytesIO()
-        fig_bar.write_image(bar_plot_buffer, format="png", engine="kaleido")
-        bar_plot_buffer.seek(0)
-        plot_buffers.append(("CellCount_BarPlot", bar_plot_buffer))
+        bar_plot_bytes = plotly_image_bytes(fig_bar, "png", engine="kaleido")
+        if bar_plot_bytes is not None:
+            bar_plot_buffer = io.BytesIO(bar_plot_bytes)
+            plot_buffers.append(("CellCount_BarPlot", bar_plot_buffer))
 
-        st.download_button(
-            label=f"Download Bar Plot ({cluster_col.capitalize()} Cluster {cluster})",
-            data=bar_plot_buffer,
-            file_name=f"CellCount_BarPlot_{cluster_col}_{cluster}_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label=f"Download Bar Plot ({cluster_col.capitalize()} Cluster {cluster})",
+                data=bar_plot_buffer,
+                file_name=f"CellCount_BarPlot_{cluster_col}_{cluster}_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
         cell_counts['Frequency'] = cell_counts['Cell Count'] / cell_counts['Cell Count'].sum()
 
@@ -2132,33 +2212,36 @@ def render_tab29():
 
         st.plotly_chart(fig_pie)
 
-        pie_plot_buffer = io.BytesIO()
-        fig_pie.write_image(pie_plot_buffer, format="png", engine="kaleido")
-        pie_plot_buffer.seek(0)
-        plot_buffers.append(("CellFrequency_PieChart", pie_plot_buffer))
+        pie_plot_bytes = plotly_image_bytes(fig_pie, "png", engine="kaleido")
+        if pie_plot_bytes is not None:
+            pie_plot_buffer = io.BytesIO(pie_plot_bytes)
+            plot_buffers.append(("CellFrequency_PieChart", pie_plot_buffer))
 
-        st.download_button(
-            label=f"Download Pie Chart ({cluster_col.capitalize()} Cluster {cluster})",
-            data=pie_plot_buffer,
-            file_name=f"CellFrequency_PieChart_{cluster_col}_{cluster}_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label=f"Download Pie Chart ({cluster_col.capitalize()} Cluster {cluster})",
+                data=pie_plot_buffer,
+                file_name=f"CellFrequency_PieChart_{cluster_col}_{cluster}_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for plot_name, plot_buffer in plot_buffers:
-                zip_file.writestr(
-                    f"{plot_name}_{random_number}.png",
-                    plot_buffer.getvalue(),
-                )
-        zip_buffer.seek(0)
+        if plot_buffers:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                for plot_name, plot_buffer in plot_buffers:
+                    zip_file.writestr(
+                        f"{plot_name}_{random_number}.png",
+                        plot_buffer.getvalue(),
+                    )
+            zip_buffer.seek(0)
 
-        st.download_button(
-            label="Download All Plots as ZIP",
-            data=zip_buffer,
-            file_name=f"CellCountPlots_{cluster_col}_{cluster}_{random_number}.zip",
-            mime="application/zip",
-        )
+            st.download_button(
+                label="Download All Plots as ZIP",
+                data=zip_buffer,
+                file_name=f"CellCountPlots_{cluster_col}_{cluster}_{random_number}.zip",
+                mime="application/zip",
+                on_click="ignore",
+            )
 
 
 
@@ -2181,7 +2264,7 @@ def render_tab30():
         with col4:
             marker = st.selectbox("Select a marker to plot", options=adata.var_names, key="violin_marker_selector")
         with col5:
-            group_by = st.selectbox("Group by", options=adata.obs.columns, key="violin_groupby_selector")
+            group_by = st.selectbox("Group by", options=adata.obs.select_dtypes(exclude="number").columns, key="violin_groupby_selector")
         violin_plot_file_format = plot_controls("violin_fmt", include=("file_format",), file_formats=("PNG", "PDF", "SVG")).file_format
         submit_violin_and_bar_plot = st.form_submit_button("Plot Violin and Bar Plots", type="primary")
 
@@ -2215,7 +2298,8 @@ def render_tab30():
             label=f"Download Violin Plot ({marker})",
             data=violin_plot_buffer,
             file_name=f"ViolinPlot_{marker}_{random_number}.{violin_plot_file_format.lower()}",
-            mime=f"image/{violin_plot_file_format.lower()}",
+            mime=_mime(violin_plot_file_format),
+            on_click="ignore",
         )
 
         bar_data = pd.DataFrame({group_by: adata.obs[group_by], 'expression': safe_flatten(adata[:, marker].X)})
@@ -2231,17 +2315,18 @@ def render_tab30():
 
         st.plotly_chart(bar_fig)
 
-        bar_plot_buffer = io.BytesIO()
-        bar_fig.write_image(bar_plot_buffer, format="png", engine="kaleido")
-        bar_plot_buffer.seek(0)
-        plot_buffers.append(("BarPlot", bar_plot_buffer))
+        bar_plot_bytes = plotly_image_bytes(bar_fig, "png", engine="kaleido")
+        if bar_plot_bytes is not None:
+            bar_plot_buffer = io.BytesIO(bar_plot_bytes)
+            plot_buffers.append(("BarPlot", bar_plot_buffer))
 
-        st.download_button(
-            label=f"Download Bar Plot ({marker})",
-            data=bar_plot_buffer,
-            file_name=f"BarPlot_{marker}_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label=f"Download Bar Plot ({marker})",
+                data=bar_plot_buffer,
+                file_name=f"BarPlot_{marker}_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
@@ -2257,6 +2342,7 @@ def render_tab30():
             data=zip_buffer,
             file_name=f"ViolinAndBarPlots_{marker}_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 
@@ -2292,13 +2378,13 @@ def render_tab6():
     if submit_combined_heatmap:
         random_number = random.randint(1000, 9999)
 
-        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().reset_index(name='Frequency')
+        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().loc[lambda c: c > 0].reset_index(name='Frequency')  # categoricals add zero-count pairs
         updated_frequency_table_dropped = frequency_table.drop(columns=['Frequency'])
         dictionary = dict(zip(updated_frequency_table_dropped['SampleID'], updated_frequency_table_dropped['Group']))
 
         combined_df = pd.DataFrame(adata.obs)
-        unique_groups = list(set(dictionary.values()))
-        combined_df['Group'] = pd.Categorical(combined_df['Group'], categories=unique_groups, ordered=True)
+        unique_groups = [g for g in _plot_categories(adata.obs['Group']) if g in dictionary.values()]
+        combined_df['Group'] = combined_df['Group'].astype('category').cat.set_categories(unique_groups, ordered=True)
 
         heatmap_data = combined_df.groupby(['Group', cluster_col], observed=True).size().unstack(fill_value=0)
 
@@ -2321,7 +2407,8 @@ def render_tab6():
             label=f"Download Number of Cells Heatmap ({heatmap_file_format.upper()})",
             data=heatmap_data_buffer,
             file_name=f"Numberofcells_{cluster_col.capitalize()}_byGroup_{random_number}.{heatmap_file_format.lower()}",
-            mime=f"image/{heatmap_file_format.lower()}",
+            mime=_mime(heatmap_file_format),
+            on_click="ignore",
         )
 
         relative_freq_data = heatmap_data.div(heatmap_data.sum(axis=1), axis=0)
@@ -2345,7 +2432,8 @@ def render_tab6():
             label=f"Download Relative Frequency Heatmap ({heatmap_file_format.upper()})",
             data=relative_freq_buffer,
             file_name=f"RelativeFrequency_{cluster_col.capitalize()}_byGroup_{random_number}.{heatmap_file_format.lower()}",
-            mime=f"image/{heatmap_file_format.lower()}",
+            mime=_mime(heatmap_file_format),
+            on_click="ignore",
         )
 
 
@@ -2376,7 +2464,7 @@ def render_tab7():
         with col5:
             font_size = st.slider("Select the font size for x-y axis", min_value=10, max_value=20, value=14, key="fontsize_slider")
 
-        color_palettes = ['Alphabet', 'Plotly', 'D3', 'G10', 'T10', 'Dark24', 'Light24', 'Magenta', 'Pastel', 'Bold', 'Safe', 'Dark2', 'Set2']
+        color_palettes = ['Alphabet', 'Plotly', 'D3', 'G10', 'T10', 'Dark24', 'Light24', 'Pastel', 'Bold', 'Safe', 'Dark2', 'Set2']
         selected_palette = st.selectbox("Select a categorical color palette for cell types:", options=color_palettes)
 
         bar_chart_file_format = plot_controls("barchart_fmt", include=("file_format",), file_formats=("SVG", "PDF")).file_format
@@ -2386,13 +2474,13 @@ def render_tab7():
     if submit_combined_bar_chart:
         random_number = random.randint(1000, 9999)
 
-        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().reset_index(name='Frequency')
+        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().loc[lambda c: c > 0].reset_index(name='Frequency')  # categoricals add zero-count pairs
         updated_frequency_table_dropped = frequency_table.drop(columns=['Frequency'])
         dictionary = dict(zip(updated_frequency_table_dropped['SampleID'], updated_frequency_table_dropped['Group']))
 
         combined_df = pd.DataFrame(adata.obs)
-        group_order = list(set(dictionary.values()))
-        combined_df['Group'] = pd.Categorical(combined_df['Group'], categories=group_order, ordered=True)
+        group_order = [g for g in _plot_categories(adata.obs['Group']) if g in dictionary.values()]
+        combined_df['Group'] = combined_df['Group'].astype('category').cat.set_categories(group_order, ordered=True)
         cluster_group_counts = combined_df.groupby([cluster_col, 'Group']).size().unstack(fill_value=0)
         relative_cell_percentages = cluster_group_counts.div(cluster_group_counts.sum(axis=0), axis=1) * 100
         num_clusters = len(combined_df[cluster_col].unique())
@@ -2429,16 +2517,17 @@ def render_tab7():
 
         st.plotly_chart(fig_relative)
 
-        fig_relative_buffer = io.BytesIO()
-        fig_relative.write_image(fig_relative_buffer, format=bar_chart_file_format.lower())
-        fig_relative_buffer.seek(0)
+        fig_relative_bytes = plotly_image_bytes(fig_relative, bar_chart_file_format.lower())
+        if fig_relative_bytes is not None:
+            fig_relative_buffer = io.BytesIO(fig_relative_bytes)
 
-        st.download_button(
-            label=f"Download Relative Cell Percentages Bar Chart ({bar_chart_file_format.upper()})",
-            data=fig_relative_buffer,
-            file_name=f"Relative_Cell_Percentages_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
-            mime=f"image/{bar_chart_file_format.lower()}",
-        )
+            st.download_button(
+                label=f"Download Relative Cell Percentages Bar Chart ({bar_chart_file_format.upper()})",
+                data=fig_relative_buffer,
+                file_name=f"Relative_Cell_Percentages_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
+                mime=_mime(bar_chart_file_format),
+                on_click="ignore",
+            )
 
         fig_count = go.Figure()
         for i, cluster in enumerate(cluster_group_counts.index):
@@ -2471,35 +2560,40 @@ def render_tab7():
 
         st.plotly_chart(fig_count)
 
-        fig_count_buffer = io.BytesIO()
-        fig_count.write_image(fig_count_buffer, format=bar_chart_file_format.lower())
-        fig_count_buffer.seek(0)
+        fig_count_bytes = plotly_image_bytes(fig_count, bar_chart_file_format.lower())
+        if fig_count_bytes is not None:
+            fig_count_buffer = io.BytesIO(fig_count_bytes)
 
-        st.download_button(
-            label=f"Download Cell Counts Bar Chart ({bar_chart_file_format.upper()})",
-            data=fig_count_buffer,
-            file_name=f"Cell_Counts_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
-            mime=f"image/{bar_chart_file_format.lower()}",
-        )
-
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            zip_file.writestr(
-                f"Relative_Cell_Percentages_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
-                fig_relative_buffer.getvalue()
+            st.download_button(
+                label=f"Download Cell Counts Bar Chart ({bar_chart_file_format.upper()})",
+                data=fig_count_buffer,
+                file_name=f"Cell_Counts_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
+                mime=_mime(bar_chart_file_format),
+                on_click="ignore",
             )
-            zip_file.writestr(
-                f"Cell_Counts_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
-                fig_count_buffer.getvalue()
-            )
-        zip_buffer.seek(0)
 
-        st.download_button(
-            label="Download All Bar Charts as ZIP",
-            data=zip_buffer,
-            file_name=f"Bar_Charts_{cluster_col}_{random_number}.zip",
-            mime="application/zip",
-        )
+        if fig_relative_bytes is not None or fig_count_bytes is not None:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                if fig_relative_bytes is not None:
+                    zip_file.writestr(
+                        f"Relative_Cell_Percentages_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
+                        fig_relative_buffer.getvalue()
+                    )
+                if fig_count_bytes is not None:
+                    zip_file.writestr(
+                        f"Cell_Counts_{cluster_col}_{random_number}.{bar_chart_file_format.lower()}",
+                        fig_count_buffer.getvalue()
+                    )
+            zip_buffer.seek(0)
+
+            st.download_button(
+                label="Download All Bar Charts as ZIP",
+                data=zip_buffer,
+                file_name=f"Bar_Charts_{cluster_col}_{random_number}.zip",
+                mime="application/zip",
+                on_click="ignore",
+            )
 
 
 if tab7.open:
@@ -2525,18 +2619,25 @@ def render_tab8():
 
     if submit_cell_percentage_count:
         random_number = random.randint(1000, 9999)
-        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().reset_index(name='Frequency')
+        frequency_table = adata.obs[['SampleID', 'Group']].value_counts().loc[lambda c: c > 0].reset_index(name='Frequency')  # categoricals add zero-count pairs
         updated_frequency_table_dropped = frequency_table.drop(columns=['Frequency'])
         dictionary = dict(zip(updated_frequency_table_dropped['SampleID'], updated_frequency_table_dropped['Group']))
-        group_order = list(set(dictionary.values()))
+        observed_pairs = frequency_table[frequency_table['Frequency'] > 0]
+        multi_group_samples = observed_pairs.loc[observed_pairs['SampleID'].duplicated(), 'SampleID'].unique()
+        if len(multi_group_samples):
+            st.warning(
+                f"Sample(s) {', '.join(map(str, multi_group_samples))} appear under more than one Group. "
+                "This plot assumes one Group per sample, so its group totals may be incomplete. Check the SampleID/Group columns."
+            )
+        group_order = [g for g in _plot_categories(adata.obs['Group']) if g in dictionary.values()]
         combined_df = pd.DataFrame(adata.obs)
 
-        combined_df['Group'] = pd.Categorical(combined_df['Group'], categories=group_order, ordered=True)
+        combined_df['Group'] = combined_df['Group'].astype('category').cat.set_categories(group_order, ordered=True)
         cluster_group_counts = combined_df.groupby([cluster_col, 'Group']).size().unstack(fill_value=0)
         cluster_sums = cluster_group_counts.sum(axis=1)
         relative_cluster_percentages = cluster_group_counts.div(cluster_sums, axis=0) * 100
-        color_indices = [0, 2, 4, 6]
-        colors = plt.cm.tab20(np.linspace(0, 1, 20))[color_indices]
+        # even tab20 indices first (as before: 0, 2, 4, 6), then odd ones, cycling for any number of groups
+        colors = plt.cm.tab20(np.resize(np.r_[0:20:2, 1:20:2], len(group_order)))
 
         fig1, ax1 = plt.subplots(figsize=(plot_width, plot_height))
         bar_width = 0.5
@@ -2568,7 +2669,8 @@ def render_tab8():
             label=f"Download Percentage Plot ({file_format.upper()})",
             data=percentage_buffer,
             file_name=f"CellPercentageByGroup_{cluster_col.capitalize()}_{random_number}.{file_format.lower()}",
-            mime=f"image/{file_format.lower()}",
+            mime=_mime(file_format),
+            on_click="ignore",
         )
 
         fig2, ax2 = plt.subplots(figsize=(plot_width, plot_height))
@@ -2601,7 +2703,8 @@ def render_tab8():
             label=f"Download Count Plot ({file_format.upper()})",
             data=count_buffer,
             file_name=f"CellCountByGroup_{cluster_col.capitalize()}_{random_number}.{file_format.lower()}",
-            mime=f"image/{file_format.lower()}",
+            mime=_mime(file_format),
+            on_click="ignore",
         )
 
         zip_buffer = io.BytesIO()
@@ -2621,6 +2724,7 @@ def render_tab8():
             data=zip_buffer,
             file_name=f"CellPlotsByGroup_{cluster_col.capitalize()}_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 
@@ -2761,9 +2865,9 @@ def render_tab10():
         submit_dotplot_dendrogram = st.form_submit_button("Plot Dot Plot and Dendrogram", type="primary")
 
     if submit_dotplot_dendrogram:
-        plt.rcParams.update({'font.size': font_size})
-
         method = 't-test' if test_selected_1 == 'Parametric (T-test)' else 'wilcoxon'
+        if _has_tiny_groups(adata, cluster_col):
+            return
         sc.tl.rank_genes_groups(adata, cluster_col, method=method)
 
         if show_dendrogram == 'Yes':
@@ -2771,37 +2875,39 @@ def render_tab10():
 
         marker_list = [adata.uns['rank_genes_groups']['names'][i][0] for i in range(len(adata.uns['rank_genes_groups']['names']))]
 
-        fig, ax = plt.subplots(figsize=(dotplot_width, dotplot_height))
         standard_scale = 'var' if scale_option == 'Yes' else None
 
-        sc.pl.dotplot(
-            adata,
-            var_names=marker_list,
-            groupby=cluster_col,
-            dendrogram=(show_dendrogram == 'Yes'),
-            standard_scale=standard_scale,
-            cmap=cmap_selected,
-            show=False,
-            ax=ax
-        )
+        with plt.rc_context({'font.size': font_size}):
+            fig, ax = plt.subplots(figsize=(dotplot_width, dotplot_height))
+            sc.pl.dotplot(
+                adata,
+                var_names=marker_list,
+                groupby=cluster_col,
+                dendrogram=(show_dendrogram == 'Yes'),
+                standard_scale=standard_scale,
+                cmap=cmap_selected,
+                show=False,
+                ax=ax
+            )
 
-        ax.tick_params(axis='x', labelsize=font_size)
-        ax.tick_params(axis='y', labelsize=font_size)
+            ax.tick_params(axis='x', labelsize=font_size)
+            ax.tick_params(axis='y', labelsize=font_size)
 
-        plt.tight_layout()
-        st.pyplot(fig)
+            plt.tight_layout()
+            st.pyplot(fig)
 
-        random_number = random.randint(1000, 9999)
-        dotplot_buffer = io.BytesIO()
-        plt.savefig(dotplot_buffer, format=dotplot_file_format.lower(), dpi=300, bbox_inches='tight')
-        dotplot_buffer.seek(0)
-        plt.close(fig)
+            random_number = random.randint(1000, 9999)
+            dotplot_buffer = io.BytesIO()
+            plt.savefig(dotplot_buffer, format=dotplot_file_format.lower(), dpi=300, bbox_inches='tight')
+            dotplot_buffer.seek(0)
+            plt.close(fig)
 
         st.download_button(
             label=f"Download Dot Plot Dendrogram ({dotplot_file_format.upper()})",
             data=dotplot_buffer,
             file_name=f"Dendogram_{cluster_col.capitalize()}_{random_number}.{dotplot_file_format.lower()}",
-            mime=f"image/{dotplot_file_format.lower()}",
+            mime=_mime(dotplot_file_format),
+            on_click="ignore",
         )
 
 
@@ -2811,7 +2917,13 @@ if tab10.open:
 
 cluster_col = 'cell_type' if 'cell_type' in adata.obs.columns else 'leiden'
 marker_list = adata.var_names
-adata.obs[cluster_col] = adata.obs[cluster_col].astype(str)
+_labels = adata.obs[cluster_col]
+# Keep string-labelled categoricals (no per-run copy) minus empty categories, which rank_genes_groups rejects; else str once
+if isinstance(_labels.dtype, pd.CategoricalDtype) and pd.api.types.is_string_dtype(_labels.cat.categories):
+    if _labels.nunique() < len(_labels.cat.categories):
+        adata.obs[cluster_col] = _labels.cat.remove_unused_categories()
+elif not pd.api.types.is_string_dtype(_labels):
+    adata.obs[cluster_col] = _labels.astype(str)
 clusters = sorted(adata.obs[cluster_col].unique())
 expression_data = pd.DataFrame(index=marker_list, columns=clusters)
 
@@ -2947,7 +3059,7 @@ def render_tab12():
         with col6:
             marker = st.selectbox("Select a marker to plot", options=adata.var_names, key="kde_marker_selector")
         with col7:
-            group_by = st.selectbox("Group by", options=adata.obs.columns, key="kde_groupby_selector")
+            group_by = st.selectbox("Group by", options=adata.obs.select_dtypes(exclude="number").columns, key="kde_groupby_selector")
         col8, col9 = st.columns(2)
         with col8:
             x_axis_format = st.radio("Select x-axis value format", ('Exact Values', 'Scientific Notation'), key="x_axis_format")
@@ -2960,12 +3072,15 @@ def render_tab12():
         unique_groups = adata.obs[group_by].unique()
         num_groups = len(unique_groups)
         num_rows = (num_groups // num_cols) + (num_groups % num_cols > 0)
-        fig, axs = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(chart_width, chart_height))
+        fig, axs = plt.subplots(nrows=num_rows, ncols=num_cols, figsize=(chart_width, chart_height), squeeze=False)
         axs = axs.flatten()
 
         for i, group in enumerate(unique_groups):
             group_data = safe_flatten(adata[adata.obs[group_by] == group, marker].X)
 
+            if len(group_data) < 2 or np.ptp(group_data) == 0:  # gaussian_kde needs spread
+                axs[i].set_title(f'{group}: too few distinct values', fontsize=font_size)
+                continue
             kde = gaussian_kde(group_data)
             x_vals = np.linspace(group_data.min(), group_data.max(), 1000)
             kde_vals = kde(x_vals) * len(group_data)
@@ -3002,7 +3117,8 @@ def render_tab12():
             label=f"Download KDE Plot ({kde_plot_file_format.upper()})",
             data=kde_plot_buffer,
             file_name=f"KDE_Plot_{marker}_{group_by}_{random_number}.{kde_plot_file_format.lower()}",
-            mime=f"image/{kde_plot_file_format.lower()}",
+            mime=_mime(kde_plot_file_format),
+            on_click="ignore",
         )
 
 
@@ -3107,7 +3223,8 @@ def render_tab13():
             label=f"Download KDE Histogram ({kde_plot_file_format.upper()})",
             data=kde_plot_buffer,
             file_name=f"KDE_Histogram_{marker}_{cluster_col}_{group_by2}_{random_number}.{kde_plot_file_format.lower()}",
-            mime=f"image/{kde_plot_file_format.lower()}",
+            mime=_mime(kde_plot_file_format),
+            on_click="ignore",
         )
 
         zip_buffer = io.BytesIO()
@@ -3124,6 +3241,7 @@ def render_tab13():
             data=zip_buffer,
             file_name=f"All_KDE_Plots_{marker}_{cluster_col}_{group_by2}_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 
@@ -3150,7 +3268,7 @@ def render_tab14():
         with col4:
             marker = st.selectbox("Select a marker to plot", options=adata.var_names, key="bar_marker_selector_50")
         with col5:
-            group_by = st.selectbox("Group by", options=adata.obs.columns, key="bar_groupby_selector_50")
+            group_by = st.selectbox("Group by", options=adata.obs.select_dtypes(exclude="number").columns, key="bar_groupby_selector_50")
         col6, col7, col8 = st.columns(3)
         with col6:
             agg_function = st.radio("Select aggregation function", options=['Mean', 'Median'], key="agg_function_selector_50")
@@ -3193,16 +3311,17 @@ def render_tab14():
         st.subheader(f'Marker profile based on {agg_function} expression')
         st.plotly_chart(fig)
 
-        bar_plot_buffer = io.BytesIO()
-        fig.write_image(bar_plot_buffer, format=bar_plot_file_format.lower())
-        bar_plot_buffer.seek(0)
+        bar_plot_bytes = plotly_image_bytes(fig, bar_plot_file_format.lower())
+        if bar_plot_bytes is not None:
+            bar_plot_buffer = io.BytesIO(bar_plot_bytes)
 
-        st.download_button(
-            label=f"Download Bar Plot ({bar_plot_file_format.upper()})",
-            data=bar_plot_buffer,
-            file_name=f"BarPlot_{marker}_{group_by}_{agg_function}_{random_number}.{bar_plot_file_format.lower()}",
-            mime=f"image/{bar_plot_file_format.lower()}",
-        )
+            st.download_button(
+                label=f"Download Bar Plot ({bar_plot_file_format.upper()})",
+                data=bar_plot_buffer,
+                file_name=f"BarPlot_{marker}_{group_by}_{agg_function}_{random_number}.{bar_plot_file_format.lower()}",
+                mime=_mime(bar_plot_file_format),
+                on_click="ignore",
+            )
 
         # Violin Plot
         set2_colors = px.colors.qualitative.Set2
@@ -3236,16 +3355,17 @@ def render_tab14():
 
         st.plotly_chart(fig_violin)
 
-        violin_plot_buffer = io.BytesIO()
-        fig_violin.write_image(violin_plot_buffer, format=bar_plot_file_format.lower())
-        violin_plot_buffer.seek(0)
+        violin_plot_bytes = plotly_image_bytes(fig_violin, bar_plot_file_format.lower())
+        if violin_plot_bytes is not None:
+            violin_plot_buffer = io.BytesIO(violin_plot_bytes)
 
-        st.download_button(
-            label=f"Download Violin Plot ({bar_plot_file_format.upper()})",
-            data=violin_plot_buffer,
-            file_name=f"ViolinPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
-            mime=f"image/{bar_plot_file_format.lower()}",
-        )
+            st.download_button(
+                label=f"Download Violin Plot ({bar_plot_file_format.upper()})",
+                data=violin_plot_buffer,
+                file_name=f"ViolinPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
+                mime=_mime(bar_plot_file_format),
+                on_click="ignore",
+            )
 
         # Box Plot
         fig_box = go.Figure()
@@ -3274,40 +3394,46 @@ def render_tab14():
 
         st.plotly_chart(fig_box)
 
-        box_plot_buffer = io.BytesIO()
-        fig_box.write_image(box_plot_buffer, format=bar_plot_file_format.lower())
-        box_plot_buffer.seek(0)
+        box_plot_bytes = plotly_image_bytes(fig_box, bar_plot_file_format.lower())
+        if box_plot_bytes is not None:
+            box_plot_buffer = io.BytesIO(box_plot_bytes)
 
-        st.download_button(
-            label=f"Download Box Plot ({bar_plot_file_format.upper()})",
-            data=box_plot_buffer,
-            file_name=f"BoxPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
-            mime=f"image/{bar_plot_file_format.lower()}",
-        )
+            st.download_button(
+                label=f"Download Box Plot ({bar_plot_file_format.upper()})",
+                data=box_plot_buffer,
+                file_name=f"BoxPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
+                mime=_mime(bar_plot_file_format),
+                on_click="ignore",
+            )
 
         # ZIP file containing all plots
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            zip_file.writestr(
-                f"BarPlot_{marker}_{group_by}_{agg_function}_{random_number}.{bar_plot_file_format.lower()}",
-                bar_plot_buffer.getvalue()
-            )
-            zip_file.writestr(
-                f"ViolinPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
-                violin_plot_buffer.getvalue()
-            )
-            zip_file.writestr(
-                f"BoxPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
-                box_plot_buffer.getvalue()
-            )
-        zip_buffer.seek(0)
+        if bar_plot_bytes is not None or violin_plot_bytes is not None or box_plot_bytes is not None:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                if bar_plot_bytes is not None:
+                    zip_file.writestr(
+                        f"BarPlot_{marker}_{group_by}_{agg_function}_{random_number}.{bar_plot_file_format.lower()}",
+                        bar_plot_buffer.getvalue()
+                    )
+                if violin_plot_bytes is not None:
+                    zip_file.writestr(
+                        f"ViolinPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
+                        violin_plot_buffer.getvalue()
+                    )
+                if box_plot_bytes is not None:
+                    zip_file.writestr(
+                        f"BoxPlot_{marker}_{group_by}_{random_number}.{bar_plot_file_format.lower()}",
+                        box_plot_buffer.getvalue()
+                    )
+            zip_buffer.seek(0)
 
-        st.download_button(
-            label="Download All Plots as ZIP",
-            data=zip_buffer,
-            file_name=f"AllPlots_{marker}_{group_by}_{random_number}.zip",
-            mime="application/zip",
-        )
+            st.download_button(
+                label="Download All Plots as ZIP",
+                data=zip_buffer,
+                file_name=f"AllPlots_{marker}_{group_by}_{random_number}.zip",
+                mime="application/zip",
+                on_click="ignore",
+            )
 
 
 if tab14.open:
@@ -3348,8 +3474,9 @@ def render_tab15():
 
         for marker in markers:
             fold_change = (
-                np.log2(safe_expression(selected_cluster_data[:, marker].X, expression_method) + 1) -
-                np.log2(safe_expression(other_clusters_data[:, marker].X, expression_method) + 1)
+                # clip at 0: compensated means can be <= -1, where log2 would be NaN and drop the marker
+                np.log2(np.maximum(safe_expression(selected_cluster_data[:, marker].X, expression_method), 0) + 1) -
+                np.log2(np.maximum(safe_expression(other_clusters_data[:, marker].X, expression_method), 0) + 1)
             )
             fold_changes.append(fold_change)
 
@@ -3398,17 +3525,18 @@ def render_tab15():
         st.subheader(f'Marker profile based on {expression_method} expression')
         st.plotly_chart(fig)
 
-        bar_plot_buffer = io.BytesIO()
-        fig.write_image(bar_plot_buffer, format="png")
-        bar_plot_buffer.seek(0)
-        plot_buffers.append(("Marker_Expression_Bar", bar_plot_buffer))
+        bar_plot_bytes = plotly_image_bytes(fig, "png")
+        if bar_plot_bytes is not None:
+            bar_plot_buffer = io.BytesIO(bar_plot_bytes)
+            plot_buffers.append(("Marker_Expression_Bar", bar_plot_buffer))
 
-        st.download_button(
-            label="Download Marker Expression Bar Plot (PNG)",
-            data=bar_plot_buffer,
-            file_name=f"Marker_Expression_Bar_{cluster_selected}_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label="Download Marker Expression Bar Plot (PNG)",
+                data=bar_plot_buffer,
+                file_name=f"Marker_Expression_Bar_{cluster_selected}_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
         # Bar Plot: Fold Change
         results_df = results_df.dropna(subset=['Fold Change']).sort_values(by='Fold Change', ascending=False)
@@ -3450,20 +3578,23 @@ def render_tab15():
         st.subheader('Marker profile based on fold change')
         st.plotly_chart(fig2)
 
-        fold_change_buffer = io.BytesIO()
-        fig2.write_image(fold_change_buffer, format="png")
-        fold_change_buffer.seek(0)
-        plot_buffers.append(("Fold_Change_Bar", fold_change_buffer))
+        fold_change_bytes = plotly_image_bytes(fig2, "png")
+        if fold_change_bytes is not None:
+            fold_change_buffer = io.BytesIO(fold_change_bytes)
+            plot_buffers.append(("Fold_Change_Bar", fold_change_buffer))
 
-        st.download_button(
-            label="Download Fold Change Bar Plot (PNG)",
-            data=fold_change_buffer,
-            file_name=f"Fold_Change_Bar_{cluster_selected}_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label="Download Fold Change Bar Plot (PNG)",
+                data=fold_change_buffer,
+                file_name=f"Fold_Change_Bar_{cluster_selected}_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
         # Ranking Scores
         method = 't-test' if test_selected == 'Parametric (T-test)' else 'wilcoxon'
+        if _has_tiny_groups(adata, cluster_col):
+            return
         sc.tl.rank_genes_groups(adata, cluster_col, method=method)
 
         markers = adata.uns['rank_genes_groups']['names'][cluster_selected]
@@ -3499,34 +3630,37 @@ def render_tab15():
 
         st.plotly_chart(fig3)
 
-        ranking_buffer = io.BytesIO()
-        fig3.write_image(ranking_buffer, format="png")
-        ranking_buffer.seek(0)
-        plot_buffers.append(("Ranking_Bar", ranking_buffer))
+        ranking_bytes = plotly_image_bytes(fig3, "png")
+        if ranking_bytes is not None:
+            ranking_buffer = io.BytesIO(ranking_bytes)
+            plot_buffers.append(("Ranking_Bar", ranking_buffer))
 
-        st.download_button(
-            label="Download Ranking Scores Bar Plot (PNG)",
-            data=ranking_buffer,
-            file_name=f"Ranking_Bar_{cluster_selected}_{random_number}.png",
-            mime="image/png",
-        )
+            st.download_button(
+                label="Download Ranking Scores Bar Plot (PNG)",
+                data=ranking_buffer,
+                file_name=f"Ranking_Bar_{cluster_selected}_{random_number}.png",
+                mime="image/png",
+                on_click="ignore",
+            )
 
         # Create ZIP File
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for plot_name, plot_buffer in plot_buffers:
-                zip_file.writestr(
-                    f"{plot_name}_{cluster_selected}_{random_number}.png",
-                    plot_buffer.getvalue(),
-                )
-        zip_buffer.seek(0)
+        if plot_buffers:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                for plot_name, plot_buffer in plot_buffers:
+                    zip_file.writestr(
+                        f"{plot_name}_{cluster_selected}_{random_number}.png",
+                        plot_buffer.getvalue(),
+                    )
+            zip_buffer.seek(0)
 
-        st.download_button(
-            label="Download All Plots as ZIP",
-            data=zip_buffer,
-            file_name=f"All_Plots_{cluster_selected}_{random_number}.zip",
-            mime="application/zip",
-        )
+            st.download_button(
+                label="Download All Plots as ZIP",
+                data=zip_buffer,
+                file_name=f"All_Plots_{cluster_selected}_{random_number}.zip",
+                mime="application/zip",
+                on_click="ignore",
+            )
 
 
 if tab15.open:
@@ -3627,7 +3761,7 @@ def render_tab16():
         # Add a download button for the plot
         deferred_download_button(fig, file_format.lower(),
             f"ViolinPlot_{selected_marker}_{cluster_col}_{random_number}.{file_format.lower()}",
-            f"image/{file_format.lower()}", key_prefix="tab16_violin")
+            _mime(file_format), key_prefix="tab16_violin")
 
 
 if tab16.open:
@@ -3712,7 +3846,7 @@ def render_tab17():
 
         deferred_download_button(bar_fig, bar_plot_file_format.lower(),
             f"BarPlot_{selected_cluster}_{cluster_col}_{random_number}.{bar_plot_file_format.lower()}",
-            f"image/{bar_plot_file_format.lower()}", key_prefix="tab17_bar")
+            _mime(bar_plot_file_format), key_prefix="tab17_bar")
 
 
 if tab17.open:
@@ -3751,6 +3885,9 @@ def render_tab18():
         submit_bar_plot_group = st.form_submit_button("Plot Bar Plot", type="primary")
 
     if submit_bar_plot_group:
+        if len(group_options) < 2:
+            st.warning("This plot needs at least two groups.")
+            return
         if 'Group' in adata.obs:
             random_number = random.randint(1000, 9999)
 
@@ -4015,33 +4152,36 @@ def render_tab31():
 
         st.plotly_chart(fig)
 
-        comparison_buffer = io.BytesIO()
-        pio.write_image(fig, comparison_buffer, format="pdf")
-        comparison_buffer.seek(0)
-        plot_buffers.append(("SubplotComparison", comparison_buffer))
+        comparison_bytes = plotly_image_bytes(fig, "pdf")
+        if comparison_bytes is not None:
+            comparison_buffer = io.BytesIO(comparison_bytes)
+            plot_buffers.append(("SubplotComparison", comparison_buffer))
 
-        st.download_button(
-            label=f"Download Comparison Plot (PDF)",
-            data=comparison_buffer,
-            file_name=f"SubplotComparison_{random_number}.pdf",
-            mime="application/pdf",
-        )
+            st.download_button(
+                label=f"Download Comparison Plot (PDF)",
+                data=comparison_buffer,
+                file_name=f"SubplotComparison_{random_number}.pdf",
+                mime="application/pdf",
+                on_click="ignore",
+            )
 
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for plot_name, plot_buffer in plot_buffers:
-                zip_file.writestr(
-                    f"{plot_name}_{random_number}.pdf",
-                    plot_buffer.getvalue(),
-                )
-        zip_buffer.seek(0)
+        if plot_buffers:
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+                for plot_name, plot_buffer in plot_buffers:
+                    zip_file.writestr(
+                        f"{plot_name}_{random_number}.pdf",
+                        plot_buffer.getvalue(),
+                    )
+            zip_buffer.seek(0)
 
-        st.download_button(
-            label="Download All Plots as ZIP",
-            data=zip_buffer,
-            file_name=f"ComparisonPlots_{random_number}.zip",
-            mime="application/zip",
-        )
+            st.download_button(
+                label="Download All Plots as ZIP",
+                data=zip_buffer,
+                file_name=f"ComparisonPlots_{random_number}.zip",
+                mime="application/zip",
+                on_click="ignore",
+            )
 
 if tab31.open:
     with tab31:
@@ -4193,17 +4333,18 @@ def render_tab32():
 
         st.plotly_chart(fig)
 
-        subplot_comparison_buffer = io.BytesIO()
-        fig.write_image(subplot_comparison_buffer, format="pdf")
-        subplot_comparison_buffer.seek(0)
-        plot_buffers.append(("SubplotComparison", subplot_comparison_buffer))
+        subplot_comparison_bytes = plotly_image_bytes(fig, "pdf")
+        if subplot_comparison_bytes is not None:
+            subplot_comparison_buffer = io.BytesIO(subplot_comparison_bytes)
+            plot_buffers.append(("SubplotComparison", subplot_comparison_buffer))
 
-        st.download_button(
-            label=f"Download Marker Expression Comparisons (PDF)",
-            data=subplot_comparison_buffer,
-            file_name=f"MarkerExpressionComparison_{random_number}.pdf",
-            mime="application/pdf",
-        )
+            st.download_button(
+                label=f"Download Marker Expression Comparisons (PDF)",
+                data=subplot_comparison_buffer,
+                file_name=f"MarkerExpressionComparison_{random_number}.pdf",
+                mime="application/pdf",
+                on_click="ignore",
+            )
 
 
 if tab32.open:
@@ -4292,17 +4433,18 @@ def render_tab33():
                 )
                 st.plotly_chart(fig)
 
-                effect_size_buffer = io.BytesIO()
-                fig.write_image(effect_size_buffer, format="pdf")
-                effect_size_buffer.seek(0)
-                plot_buffers.append(("EffectSizeComparison", effect_size_buffer))
+                effect_size_bytes = plotly_image_bytes(fig, "pdf")
+                if effect_size_bytes is not None:
+                    effect_size_buffer = io.BytesIO(effect_size_bytes)
+                    plot_buffers.append(("EffectSizeComparison", effect_size_buffer))
 
-                st.download_button(
-                    label=f"Download Effect Size Comparison Plot (PDF)",
-                    data=effect_size_buffer,
-                    file_name=f"EffectSizeComparison_{random_number}.pdf",
-                    mime="application/pdf",
-                )
+                    st.download_button(
+                        label=f"Download Effect Size Comparison Plot (PDF)",
+                        data=effect_size_buffer,
+                        file_name=f"EffectSizeComparison_{random_number}.pdf",
+                        mime="application/pdf",
+                        on_click="ignore",
+                    )
 
 if tab33.open:
     with tab33:
@@ -4332,7 +4474,7 @@ def render_tab34():
 
         prop_df, sample_group = compute_sample_proportions(adata, cluster_col)
 
-        group_counts = sample_group.value_counts()
+        group_counts = sample_group.value_counts().loc[lambda c: c > 0]  # categoricals list unused groups with n=0
         n_groups = group_counts.shape[0]
         if n_groups < 2:
             st.warning("Need at least 2 groups to test differential abundance.")
@@ -4393,6 +4535,7 @@ def render_tab34():
             data=results_buffer.getvalue(),
             file_name=f"DifferentialAbundanceResults_{random_number}.csv",
             mime="text/csv",
+            on_click="ignore",
         )
 
         st.download_button(
@@ -4400,6 +4543,7 @@ def render_tab34():
             data=heatmap_buffer,
             file_name=f"AbundanceHeatmap_{random_number}.png",
             mime="image/png",
+            on_click="ignore",
         )
 
         zip_buffer = io.BytesIO()
@@ -4416,6 +4560,7 @@ def render_tab34():
             data=zip_buffer,
             file_name=f"DifferentialAbundanceAnalysis_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 if tab34.open:
@@ -4551,11 +4696,17 @@ def render_tab36():
         unique_groups = adata.obs['Group'].unique()
 
         for group in unique_groups:
-            st.write(f"### Correlation Plot for Group: {group}")
             adata_group = adata[adata.obs['Group'] == group]
             adata_group.obs[cell_type_column] = adata_group.obs[cell_type_column].astype("category")
             clustered_data = adata_group.to_df().groupby(adata_group.obs[cell_type_column]).mean()
             corr_matrix = clustered_data.T.corr()
+            if len(clustered_data) < 2 or corr_matrix.isna().any().any():  # clustermap raises on <2 rows or NaN (constant-mean cluster)
+                st.warning(
+                    f"Group {group} skipped: correlation needs at least two {cell_type_column} clusters whose mean "
+                    f"marker values vary (found {len(clustered_data)} cluster(s))."
+                )
+                continue
+            st.write(f"### Correlation Plot for Group: {group}")
             st.write(f"Plotting correlation heatmap with dendrogram for Group: {group}")
 
             g = sns.clustermap(
@@ -4583,7 +4734,8 @@ def render_tab36():
                 label=f"Download {plot_name} ({plot_file_format.upper()})",
                 data=plot_buffer,
                 file_name=f"{plot_name}_{random_number}.{plot_file_format.lower()}",
-                mime=f"image/{plot_file_format.lower()}",
+                mime=_mime(plot_file_format),
+                on_click="ignore",
             )
 
         zip_buffer = io.BytesIO()
@@ -4597,6 +4749,7 @@ def render_tab36():
             data=zip_buffer,
             file_name=f"CorrelationPlots_{random_number}.zip",
             mime="application/zip",
+            on_click="ignore",
         )
 
 if tab36.open:
