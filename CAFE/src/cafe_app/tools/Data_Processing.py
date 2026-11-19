@@ -37,7 +37,7 @@ from utils import (
     run_combat_correction,
     summarize_batch_effect,
 )
-from session_store import clear_current_data, set_adata
+from session_store import _CLEARABLE_PREFIXES, clear_current_data, set_adata
 
 sc.settings.n_jobs = -1
 apply_theme()
@@ -290,9 +290,14 @@ def _methods_paragraph(adata, qc, pca, batch, umap):
                 "marker signal."
             )
     if batch.get("method", "None") != "None":
+        covariates = batch.get("covariates", [])
         parts.append(
-            f"{batch.get('method')} batch correction was applied across batches while "
-            f"preserving the {', '.join(batch.get('covariates', []))} covariate(s)."
+            f"{batch.get('method')} batch correction was applied across batches "
+            + (
+                f"while preserving the {', '.join(covariates)} covariate(s)."
+                if covariates
+                else "without covariates."
+            )
         )
     if pca.get("performed"):
         parts.append(
@@ -365,7 +370,7 @@ def build_parameters_report(adata):
     else:
         add(f"Method           : {batch.get('method')}")
         add(f"Batch key        : {batch.get('batch_key')}")
-        add(f"Covariates       : {', '.join(batch.get('covariates', []))}")
+        add(f"Covariates       : {', '.join(batch.get('covariates', [])) or 'none'}")
         if batch.get("emd_before") is not None and batch.get("emd_after") is not None:
             add(
                 f"Batch effect     : mean EMD {batch['emd_before']:.3f} -> "
@@ -480,7 +485,14 @@ def build_outputs_zip(adata, resolution, umap_pngs=None):
         leiden_num = pd.to_numeric(adata.obs["leiden"], errors="coerce").to_numpy()
         sample_ids_arr = adata.obs["SampleID"].to_numpy()
         group_arr = adata.obs["Group"].to_numpy()
+        used_names = set()  # sanitising can map distinct IDs to one name; compared case-insensitively for macOS/Windows
         for sid in pd.unique(sample_ids_arr):
+            base = fname = _safe_filename(sid)
+            n = 1
+            while fname.lower() in used_names:
+                n += 1
+                fname = f"{base}_{n}"
+            used_names.add(fname.lower())
             mask = sample_ids_arr == sid
             sub = expr_df.loc[mask].copy()
             sub["Leiden_Cluster"] = leiden_num[mask]
@@ -492,7 +504,7 @@ def build_outputs_zip(adata, resolution, umap_pngs=None):
             sub.to_csv(sample_csv, index=False)
             sample_csv.seek(0)
             zip_file.writestr(
-                f"per_sample_clustered/{_safe_filename(sid)}.csv",
+                f"per_sample_clustered/{fname}.csv",
                 sample_csv.getvalue(),
             )
 
@@ -633,6 +645,32 @@ def render_batch_diagnostics(adata, batch_map):
     return emd_df
 
 
+# Per-run step flags, review gates and outputs: cleared by "Start over" and whenever a new dataset is loaded.
+_RUN_STATE_KEYS = [
+    "uploaded_files",
+    "batch_correction_done",
+    "umap_computed",
+    "pca_done",
+    "leiden_computed",
+    "qc_done",
+    "pca_selected",
+    "_qc_total_signal",
+    "_last_zip_buffer",
+    "_last_zip_name",
+    "_packaging_started",
+    "_umap_resolution",
+    "_upload_review",
+    "_upload_files",
+    "_show_batch_diag",
+    "_qc_pending",
+    "_pca_pending",
+    "_batch_pending",
+    "_umap_pending",
+    "_pre_combat_pca_batch",
+    "_pre_combat_pca_group",
+]
+
+
 # Session state initialization
 def _init_state():
     st.session_state.setdefault("adata", None)
@@ -754,8 +792,21 @@ if not st.session_state.get("_dp_started") or st.session_state.adata is None:
         st.caption("No marker is shared across every file. See the mismatch report below.")
 
     mismatches = review["mismatches"]
-    bad_names = review["bad_names"]
-    can_proceed = not mismatches and not bad_names
+    duplicates = review.get("duplicates") or []
+    bad_names = [n for n in review["bad_names"] if n not in duplicates]
+    can_proceed = not mismatches and not bad_names and not duplicates
+
+    if duplicates:
+        info_card(
+            title="Duplicate samples",
+            body=(
+                "Two files map to the same sample (or the same file was uploaded twice), "
+                "so their cells would be merged into one sample:<br>"
+                + "<br>".join(f"• <code>{d}</code>" for d in duplicates)
+                + "<br><br>Give every file a unique SampleID, remove the extra copy, and re-upload."
+            ),
+            kind="error",
+        )
 
     if bad_names:
         info_card(
@@ -808,12 +859,16 @@ if not st.session_state.get("_dp_started") or st.session_state.adata is None:
                 f.seek(0)
             except Exception:
                 pass
+        st.session_state.pop("_load_notice", None)  # a load that fails before reporting must not show an older notice
         adata = process_uploaded_csv_files(st.session_state["_upload_files"])
         if adata is not None:
+            # A new dataset always starts at QC: drop step flags and review gates from any earlier run.
+            for key in _RUN_STATE_KEYS:
+                st.session_state.pop(key, None)
+            for key in [k for k in st.session_state.keys() if k.startswith(_CLEARABLE_PREFIXES)]:
+                st.session_state.pop(key, None)
             set_adata(adata, source="data_processing:upload")
             st.session_state["_dp_started"] = True
-            st.session_state.pop("_upload_review", None)
-            st.session_state.pop("_upload_files", None)
             st.rerun()
         else:
             st.error("Could not build an AnnData object from the uploaded files. Check the CSV format and try again.")
@@ -829,6 +884,11 @@ if not st.session_state.qc_done:
         subtitle="Remove doublets, debris and unmixing outliers using MAD outlier detection on each cell's total marker signal.",
         step=2,
     )
+
+    # Loader messages were written before the post-load rerun; show them once here.
+    load_notice = st.session_state.pop("_load_notice", None)
+    if load_notice:
+        st.warning(load_notice)
 
     _review_gate("_qc_pending", "qc_done", "Batch correction")
 
@@ -1429,7 +1489,8 @@ if not st.session_state.batch_correction_done:
                 st.session_state["_params_batch"] = {
                     "method": "ComBat",
                     "batch_key": "Batch",
-                    "covariates": ["Group"],
+                    # Mirrors run_combat_correction: Group is a covariate only with >= 2 levels.
+                    "covariates": ["Group"] if adata.obs["Group"].nunique() >= 2 else [],
                     "mapping": batch_map,
                     "emd_before": (
                         float(emd_before["emd_max"].mean()) if not emd_before.empty else None
@@ -1559,29 +1620,7 @@ if not st.session_state.umap_computed:
         st.divider()
 
         if st.button("Start over", type="secondary", key="dp_start_over"):
-            clear_current_data(extra_keys=[
-                "uploaded_files",
-                "batch_correction_done",
-                "umap_computed",
-                "pca_done",
-                "leiden_computed",
-                "qc_done",
-                "pca_selected",
-                "_qc_total_signal",
-                "_last_zip_buffer",
-                "_last_zip_name",
-                "_packaging_started",
-                "_umap_resolution",
-                "_upload_review",
-                "_upload_files",
-                "_show_batch_diag",
-                "_qc_pending",
-                "_pca_pending",
-                "_batch_pending",
-                "_umap_pending",
-                "_pre_combat_pca_batch",
-                "_pre_combat_pca_group",
-            ])
+            clear_current_data(extra_keys=_RUN_STATE_KEYS)
             st.rerun()
 
         st.stop()
@@ -1628,15 +1667,7 @@ if not st.session_state.umap_computed:
                 help="Determines how distances between data points are calculated.",
             )
 
-        col3, col4 = st.columns(2)
-        with col3:
-            flavor_options = ["igraph", "leidenalg"]
-            selected_flavor = st.selectbox(
-                "Leiden flavor",
-                options=flavor_options,
-                index=0,
-            )
-        with col4:
+        with col1:
             dim_option = ["None", "X_pca", "X_umap"]
             pca_default_index = 1 if st.session_state.get("pca_selected", False) else 0
             selected_dim = st.selectbox(
@@ -1671,8 +1702,9 @@ if not st.session_state.umap_computed:
                 status_placeholder.markdown("**Step 1/4: Computing neighbors…**")
                 progress_bar.progress(progress)
 
-                use_rep = None if selected_dim == "None" else selected_dim
-                if use_rep is not None and use_rep not in adata.obsm:
+                # "X" forces the raw matrix; None would let scanpy use/compute X_pca above 50 markers.
+                use_rep = "X" if selected_dim == "None" else selected_dim
+                if use_rep != "X" and use_rep not in adata.obsm:
                     st.error(
                         f"{selected_dim} not found in adata.obsm. Please run the corresponding dimensionality reduction first."
                     )
@@ -1702,7 +1734,7 @@ if not st.session_state.umap_computed:
                     adata,
                     resolution=resolution,
                     random_state=50,
-                    flavor=selected_flavor,
+                    flavor="igraph",
                     n_iterations=2,
                     directed=False,
                 )
@@ -1741,8 +1773,8 @@ if not st.session_state.umap_computed:
                     "n_neighbors": n_neighbors,
                     "min_dist": min_dist,
                     "metric": selected_metric,
-                    "leiden_flavor": selected_flavor,
-                    "use_rep": use_rep if use_rep is not None else "raw expression (X)",
+                    "leiden_flavor": "igraph",
+                    "use_rep": "raw expression (X)" if use_rep == "X" else use_rep,
                     "n_clusters": int(adata.obs["leiden"].nunique()),
                     "random_state": 50,
                 }

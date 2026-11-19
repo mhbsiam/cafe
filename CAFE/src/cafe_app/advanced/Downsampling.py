@@ -9,7 +9,7 @@ from scipy.stats import gaussian_kde
 from sklearn.decomposition import PCA
 
 from theme import IMG_DIR, apply_theme, page_header
-from utils import validate_path
+from utils import user_dir
 
 st.set_page_config(layout="centered")
 apply_theme()
@@ -89,7 +89,8 @@ def process_file(file_path, output_dir, method, n_components, n_markers, n_sampl
         skipped = False
 
     file_name = os.path.basename(file_path)
-    output_file = os.path.join(output_dir, f"downsampled_{file_name}")
+    # Keep the original name: CAFE loaders require exactly SampleID_Group.csv.
+    output_file = os.path.join(output_dir, file_name)
     downsampled_df.to_csv(output_file, index=False)
     return file_name if skipped else None
 
@@ -97,9 +98,14 @@ def process_file(file_path, output_dir, method, n_components, n_markers, n_sampl
 def process_directory_parallel(
     directory, output_dir, method, n_components, n_markers, n_samples, n_jobs
 ):
+    # Outputs reuse the input names, so writing into the input folder would overwrite the inputs.
+    if os.path.samefile(directory, output_dir):
+        raise ValueError("The output directory must be different from the input directory; outputs keep the input file names.")
     files = [
-        os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".csv")
+        os.path.join(directory, f) for f in os.listdir(directory) if f.lower().endswith(".csv")
     ]
+    if not files:
+        raise ValueError(f"No CSV files found in '{directory}'.")
 
     start_time = time.time()
 
@@ -146,7 +152,7 @@ if not st.session_state.get("downsampling_configured"):
 # Step 2: Configure sampling details
 if st.session_state.get("downsampling_configured"):
     with st.expander("Data I/O", expanded=True):
-        st.caption("Paths to the folder of CSV files to downsample, and where to write the outputs.")
+        st.caption("Paths to the folder of CSV files to downsample, and where to write the outputs (a different folder; output files keep their original names).")
         input_directory = st.text_input("Enter the input directory:", "")
         output_directory = st.text_input("Enter the output directory:", "")
 
@@ -175,21 +181,15 @@ if st.session_state.get("downsampling_configured"):
 
     with st.expander("Parallelism", expanded=True):
         st.caption("Number of CPU cores to use for parallel file processing. –1 uses all available cores.")
-        n_jobs = st.slider(
-            "Select the number of jobs (parallel processing cores):", -1, 4, -1
+        n_jobs = st.select_slider(
+            "Select the number of jobs (parallel processing cores):", [-1, 1, 2, 3, 4], -1
         )
 
     if st.button("Apply", type="primary"):
         with st.spinner("The program is running...."):
+            input_directory = user_dir(input_directory)
+            output_directory = user_dir(output_directory)
             if input_directory and output_directory:
-                # Validate paths
-                try:
-                    input_directory = validate_path(input_directory)
-                    output_directory = validate_path(output_directory)
-                except ValueError as e:
-                    st.error(str(e))
-                    st.stop()
-
                 if not os.path.isdir(input_directory):
                     st.error(f"Input directory '{input_directory}' does not exist or is not a directory.")
                     st.stop()
@@ -197,15 +197,19 @@ if st.session_state.get("downsampling_configured"):
                 if not os.path.exists(output_directory):
                     os.makedirs(output_directory)
 
-                elapsed_time, skipped_files = process_directory_parallel(
-                    input_directory,
-                    output_directory,
-                    method,
-                    n_components,
-                    n_markers,
-                    n_samples,
-                    n_jobs,
-                )
+                try:
+                    elapsed_time, skipped_files = process_directory_parallel(
+                        input_directory,
+                        output_directory,
+                        method,
+                        n_components,
+                        n_markers,
+                        n_samples,
+                        n_jobs,
+                    )
+                except ValueError as e:
+                    st.error(str(e))
+                    st.stop()
 
                 st.write(
                     f"Processing complete. Elapsed time: {elapsed_time:.2f} seconds"

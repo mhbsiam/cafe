@@ -13,7 +13,7 @@ from scipy.spatial.distance import cdist
 from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 
 from theme import IMG_DIR, apply_theme, page_header
-from utils import process_directory_csv_files, validate_path
+from utils import process_directory_csv_files, user_dir
 
 st.set_page_config(layout="centered")
 apply_theme()
@@ -42,13 +42,13 @@ with st.expander("PCA settings", expanded=True):
 with st.expander("UMAP & Leiden settings", expanded=True):
     st.caption("These parameters govern both the embedding and the clustering sweep. Each combination of resolution produces a separate AnnData and UMAP image.")
     leiden_resolutions = st.text_input("Leiden Resolutions (comma-separated)", value="0.1,0.3,0.5,0.6,0.7")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         n_neighbors = st.selectbox("UMAP n_neighbors", [10, 15, 20, 30, 50], index=1)
-        min_dist = st.selectbox("UMAP min_dist", [0.1, 0.2, 0.3, 0.4, 0.5])
     with col2:
+        min_dist = st.selectbox("UMAP min_dist", [0.1, 0.2, 0.3, 0.4, 0.5])
+    with col3:
         distance_metric = st.selectbox("Distance Metric", ['euclidean', 'manhattan', 'cosine'])
-        leiden_flavor = st.selectbox("Leiden Clustering Flavor", ['igraph', 'leidenalg'])
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
     resolutions_used, neighbors_used = [], []
 
     for n_neighbors in n_neighbors_list:
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors, metric=metric, random_state=50)
+        sc.pp.neighbors(adata, n_neighbors=n_neighbors, use_rep='X_pca', metric=metric, random_state=50)
         sc.tl.umap(adata, min_dist=min_dist, random_state=50)
 
         for res_idx, resolution in enumerate(resolutions):
@@ -287,22 +287,43 @@ Plot against number of clusters and look for the point where the curve bends sha
     st.plotly_chart(dashboard, width='stretch')
 
 
+def parse_resolutions(text):
+    """Parse the comma-separated resolutions; raise ValueError naming the bad entry."""
+    resolutions = []
+    for entry in (e.strip() for e in text.split(',')):
+        if not entry:
+            continue
+        try:
+            value = float(entry)
+        except ValueError:
+            raise ValueError(f"'{entry}' is not a number.") from None
+        if not 0 < value < float('inf'):  # also rejects nan
+            raise ValueError(f"'{entry}' must be a positive number.")
+        resolutions.append(value)
+    if not resolutions:
+        raise ValueError("Enter at least one resolution, e.g. 0.1,0.5,1.0.")
+    return resolutions
+
+
 if st.button('Run Analysis', type="primary"):
+    try:
+        resolutions = parse_resolutions(leiden_resolutions)
+    except ValueError as e:
+        st.error(f"Invalid Leiden resolutions: {e}")
+        st.stop()
     with st.spinner("Working..."):
+        input_dir = user_dir(input_dir)
+        output_dir = user_dir(output_dir)
         if not input_dir or not output_dir:
             st.error("Please specify both input and output directories.")
         else:
-            # Validate paths
-            try:
-                input_dir = validate_path(input_dir)
-                output_dir = validate_path(output_dir)
-            except ValueError as e:
-                st.error(str(e))
+            if not os.path.isdir(input_dir):
+                st.error(f"Input directory '{input_dir}' does not exist or is not a directory.")
                 st.stop()
+            os.makedirs(output_dir, exist_ok=True)
             adata = process_csv_files(input_dir, output_dir)
 
             if adata is not None:
-                resolutions = [float(r.strip()) for r in leiden_resolutions.split(',') if r.strip()]
                 perform_pca(adata, pca_solver, variance_threshold, output_dir)
-                run_umap_leiden(adata, resolutions, [n_neighbors], min_dist, distance_metric, output_dir, leiden_flavor)
+                run_umap_leiden(adata, resolutions, [n_neighbors], min_dist, distance_metric, output_dir, "igraph")
                 gc.collect()

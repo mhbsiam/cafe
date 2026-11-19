@@ -12,7 +12,7 @@ import streamlit as st
 
 from theme import IMG_DIR, apply_theme, page_header
 from utils import process_uploaded_csv_to_df, run_combat_correction
-from session_store import clear, current_token, set_adata
+from session_store import clear_current_data, set_adata
 
 st.set_page_config(layout="centered")
 apply_theme()
@@ -24,6 +24,26 @@ st.logo(os.path.join(IMG_DIR, 's_logo.png'))
 def process_csv_files(uploaded_files):
     # A4: delegate to shared utils implementation (returns DataFrame)
     return process_uploaded_csv_to_df(uploaded_files)
+
+def run_truncated_pca(adata, pca_solver, variance_threshold):
+    """PCA kept to the fewest PCs reaching variance_threshold (%); returns (cumulative variance ratio, n kept)."""
+    sc.tl.pca(adata, svd_solver=pca_solver.lower())
+
+    pca_variance_ratio = adata.uns['pca']['variance_ratio'].cumsum()
+
+    # B12 fix: handle case where no component reaches the variance threshold
+    threshold_mask = pca_variance_ratio >= variance_threshold / 100
+    if not threshold_mask.any():
+        st.warning(f"No principal component reaches {variance_threshold}% variance. Using all {len(pca_variance_ratio)} components.")
+        num_components = len(pca_variance_ratio)
+    else:
+        num_components = threshold_mask.argmax() + 1
+
+    adata.obsm['X_pca'] = adata.obsm['X_pca'][:, :num_components]
+    adata.varm['PCs'] = adata.varm['PCs'][:, :num_components]
+    adata.uns['pca']['variance'] = adata.uns['pca']['variance'][:num_components]
+    adata.uns['pca']['variance_ratio'] = adata.uns['pca']['variance_ratio'][:num_components]
+    return pca_variance_ratio, num_components
 
 def perform_batch_correction(adata):
     with st.expander("Batch correction", expanded=True):
@@ -61,10 +81,10 @@ def perform_batch_correction(adata):
     if submit_button:
         if 'Group' not in adata.obs.columns:
             st.write("The 'Group' column does not exist in adata.obs.")
-            st.session_state.batch_correction_done = True
+            st.session_state.sel_batch_correction_done = True
         elif batch_correction_method == 'None':
             st.write("No batch correction applied.")
-            st.session_state.batch_correction_done = True
+            st.session_state.sel_batch_correction_done = True
         else:
             batch_map = dict(zip(
                 batch_assignment_df['SampleID'].astype(str),
@@ -81,7 +101,15 @@ def perform_batch_correction(adata):
                 adata.obs.drop(columns=['Batch'], inplace=True, errors='ignore')
             else:
                 st.write(f"{msg} (in {elapsed_time:.2f} seconds)")
-                st.session_state.batch_correction_done = True
+                # Neighbours use X_pca, so recompute it on the corrected data with the user's PCA settings.
+                if st.session_state.get('sel_perform_pca', False) and 'X_pca' in adata.obsm:
+                    _, num_components = run_truncated_pca(
+                        adata,
+                        st.session_state['sel_pca_solver'],
+                        st.session_state['sel_variance_threshold'],
+                    )
+                    st.write(f"PCA recomputed on the batch-corrected data ({num_components} components).")
+                st.session_state.sel_batch_correction_done = True
 
     return adata
 
@@ -139,7 +167,7 @@ def compute_umap_leiden(adata):
         with st.spinner("Working....."):
 
             random_state = 50
-            if st.session_state.get('pca_done', False) and 'X_pca' in adata.obsm:
+            if st.session_state.get('sel_pca_done', False) and 'X_pca' in adata.obsm:
                 st.write("Using PCA results for clustering.")
                 sc.pp.neighbors(
                     adata,
@@ -155,7 +183,7 @@ def compute_umap_leiden(adata):
                     adata,
                     n_neighbors=n_neighbors,
                     method='umap',
-                    use_rep=None,
+                    use_rep='X',
                     metric=selected_metric,
                     random_state=random_state
                 )
@@ -225,8 +253,8 @@ def compute_umap_leiden(adata):
             del cluster_sample_percentages
             del median_df
             del medians
-            st.session_state['leiden_computed'] = True
-            st.session_state['umap_computed'] = True
+            st.session_state['sel_leiden_computed'] = True
+            st.session_state['sel_umap_computed'] = True
 
     return adata
 
@@ -234,16 +262,16 @@ def compute_umap_leiden(adata):
 
 if 'adata' not in st.session_state:
     st.session_state['adata'] = None
-if 'pca_done' not in st.session_state:
-    st.session_state['pca_done'] = False
-if 'batch_correction_done' not in st.session_state:
-    st.session_state['batch_correction_done'] = False
-if 'leiden_computed' not in st.session_state:
-    st.session_state['leiden_computed'] = False
-if 'umap_computed' not in st.session_state:
-    st.session_state['umap_computed'] = False
-if 'perform_pca' not in st.session_state:
-    st.session_state['perform_pca'] = False
+if 'sel_pca_done' not in st.session_state:
+    st.session_state['sel_pca_done'] = False
+if 'sel_batch_correction_done' not in st.session_state:
+    st.session_state['sel_batch_correction_done'] = False
+if 'sel_leiden_computed' not in st.session_state:
+    st.session_state['sel_leiden_computed'] = False
+if 'sel_umap_computed' not in st.session_state:
+    st.session_state['sel_umap_computed'] = False
+if 'sel_perform_pca' not in st.session_state:
+    st.session_state['sel_perform_pca'] = False
 
 
 page_header(
@@ -262,13 +290,8 @@ if st.button("Apply", type="primary"):
     for key in list(st.session_state.keys()):
         if key.startswith('selective_') or key.startswith('subset_'):
             del st.session_state[key]
-    clear(current_token())
-    st.session_state['adata'] = None
-    st.session_state['pca_done'] = False
-    st.session_state['batch_correction_done'] = False
-    st.session_state['leiden_computed'] = False
-    st.session_state['umap_computed'] = False
-    st.session_state['perform_pca'] = False
+    # A new run replaces the dataset: drop it (memory + disk) and every page's pipeline flags.
+    clear_current_data(extra_keys=('sel_pca_solver', 'sel_variance_threshold'))
     st.session_state['option_confirmed'] = option
     st.rerun()
 
@@ -288,11 +311,11 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
         "UMAP & Leiden",
         "Complete",
     ]
-    if st.session_state.get('umap_computed', False):
+    if st.session_state.get('sel_umap_computed', False):
         _current_step = 5
-    elif st.session_state.get('batch_correction_done', False):
+    elif st.session_state.get('sel_batch_correction_done', False):
         _current_step = 4
-    elif st.session_state.get('pca_done', False):
+    elif st.session_state.get('sel_pca_done', False):
         _current_step = 3
     elif st.session_state['adata'] is not None:
         _current_step = 2
@@ -408,7 +431,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
         adata = st.session_state['adata']
 
     # ── Step 2: PCA ───────────────────────────────────────────────────────────
-    if st.session_state['adata'] is not None and not st.session_state.get('pca_done', False):
+    if st.session_state['adata'] is not None and not st.session_state.get('sel_pca_done', False):
 
         with st.expander("PCA", expanded=True):
             st.caption("Dimensionality reduction before clustering. PCA is optional. Skip it if your panel is small or you prefer to cluster in marker space directly.")
@@ -417,7 +440,7 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
                 pca_option = st.radio(
                     "Select PCA option",
                     ('None', 'Perform PCA'),
-                    index=1 if st.session_state.get('perform_pca', False) else 0,
+                    index=1 if st.session_state.get('sel_perform_pca', False) else 0,
                     key='pca_option_radio'
                 )
 
@@ -425,13 +448,13 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
 
         if submit_pca_selection:
             if pca_option == 'Perform PCA':
-                st.session_state['perform_pca'] = True
+                st.session_state['sel_perform_pca'] = True
             else:
-                st.session_state['perform_pca'] = False
-                st.session_state['pca_done'] = True
+                st.session_state['sel_perform_pca'] = False
+                st.session_state['sel_pca_done'] = True
                 st.write("PCA not selected. Proceeding without PCA.")
 
-    if st.session_state.get('perform_pca', False) and not st.session_state.get('pca_done', False):
+    if st.session_state.get('sel_perform_pca', False) and not st.session_state.get('sel_pca_done', False):
 
         with st.expander("PCA settings", expanded=True):
             st.caption("Choose the SVD solver and the variance threshold that determines how many principal components to retain.")
@@ -456,22 +479,10 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
         if apply_pca_button:
             adata = st.session_state['adata']
             st.write("Running PCA...")
-            sc.tl.pca(adata, svd_solver=pca_solver.lower())
-
-            pca_variance_ratio = adata.uns['pca']['variance_ratio'].cumsum()
-
-            # B12 fix: handle case where no component reaches the variance threshold
-            threshold_mask = pca_variance_ratio >= variance_threshold / 100
-            if not threshold_mask.any():
-                st.warning(f"No principal component reaches {variance_threshold}% variance. Using all {len(pca_variance_ratio)} components.")
-                num_components = len(pca_variance_ratio)
-            else:
-                num_components = threshold_mask.argmax() + 1
-
-            adata.obsm['X_pca'] = adata.obsm['X_pca'][:, :num_components]
-            adata.varm['PCs'] = adata.varm['PCs'][:, :num_components]
-            adata.uns['pca']['variance'] = adata.uns['pca']['variance'][:num_components]
-            adata.uns['pca']['variance_ratio'] = adata.uns['pca']['variance_ratio'][:num_components]
+            # Widget state is dropped once this form unmounts; the post-ComBat PCA rerun needs both.
+            st.session_state['sel_pca_solver'] = pca_solver
+            st.session_state['sel_variance_threshold'] = variance_threshold
+            pca_variance_ratio, num_components = run_truncated_pca(adata, pca_solver, variance_threshold)
 
             st.write(f"PCA applied using the {pca_solver} solver and retaining {num_components} components to meet the {variance_threshold}% explained variance threshold.")
 
@@ -487,18 +498,20 @@ if _confirmed_option in ['Subset by removing markers', 'Subset by cell type']:
             plt.close(fig)
 
             st.write("PCA Results by Group:")
-            sc.pl.pca(adata, color='Group', show=True)
+            fig = sc.pl.pca(adata, color='Group', show=False, return_fig=True)
+            st.pyplot(fig)
+            plt.close(fig)
 
-            st.session_state.pca_done = True
+            st.session_state.sel_pca_done = True
             set_adata(adata, source="selective_clustering:pca")
 
     # ── Step 3: Batch correction ───────────────────────────────────────────────
-    if st.session_state.get('pca_done', False) and not st.session_state.get('batch_correction_done', False):
+    if st.session_state.get('sel_pca_done', False) and not st.session_state.get('sel_batch_correction_done', False):
         adata = perform_batch_correction(st.session_state['adata'])
         set_adata(adata, source="selective_clustering:batch")
 
     # ── Step 4: UMAP & Leiden ─────────────────────────────────────────────────
-    if st.session_state.get('batch_correction_done', False) and not st.session_state.get('umap_computed', False):
+    if st.session_state.get('sel_batch_correction_done', False) and not st.session_state.get('sel_umap_computed', False):
         adata = compute_umap_leiden(st.session_state['adata'])
         set_adata(adata, source="selective_clustering:leiden")
 else:

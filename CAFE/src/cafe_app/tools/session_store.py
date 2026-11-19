@@ -197,6 +197,8 @@ def clear_current_data(*, extra_keys=()):
     clear(current_token())
     for key in (*_CLEARABLE_KEYS, *extra_keys):
         st.session_state.pop(key, None)
+    for key in [k for k in st.session_state.keys() if k.startswith(_CLEARABLE_PREFIXES)]:
+        st.session_state.pop(key, None)
 
 
 def set_adata(adata, *, source, filename=None):
@@ -219,7 +221,15 @@ _CLEARABLE_KEYS = (
     "adata", "_dp_started", "_viz_adata", "_viz_adata_key", "_viz_pending_upload",
     "qc_done", "pca_done", "pca_selected", "perform_pca",
     "batch_correction_done", "leiden_computed", "umap_computed", "uploaded_files",
+    "_upload_review", "_upload_files", "_load_notice", "_qc_total_signal", "_qc_reco_cap_prev",
+    "_qc_pending", "_pca_pending", "_batch_pending", "_umap_pending", "_show_batch_diag",
+    "_pre_combat_pca_batch", "_pre_combat_pca_group", "_umap_resolution", "_packaging_started",
+    "batch_assignment_editor",
+    "sel_pca_done", "sel_batch_correction_done", "sel_umap_computed", "sel_leiden_computed",
+    "sel_perform_pca", "sel_pca_solver", "sel_variance_threshold",
 )
+# Families with per-dataset suffixes (per-step params, UMAP figures, zip download, per-sample QC n_MADs).
+_CLEARABLE_PREFIXES = ("_params_", "_umap_fig_", "_last_zip_", "qc_nmads_")
 
 
 def render_clear_control():

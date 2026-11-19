@@ -75,7 +75,8 @@ def _process_single_table(table, file_name):
         table = table.drop(['Group'])
 
     # Parse filename: expected format 'sampleID_group.csv'
-    name_parts = file_name.replace('.csv', '').split('_')
+    stem = os.path.splitext(file_name)[0] if file_name.lower().endswith('.csv') else file_name
+    name_parts = stem.split('_')
     if len(name_parts) != 2:
         return None, f"Skipping file {file_name} as it does not have the expected format 'sampleID_group.csv'"
 
@@ -90,15 +91,80 @@ def _process_single_table(table, file_name):
     return table, None
 
 
-def _tables_to_anndata(tables):
-    """Combine Arrow tables and convert to AnnData."""
-    combined_table = pa.concat_tables(tables)
-    df = combined_table.to_pandas()
+def _combine_tables(named_tables):
+    """[(file_name, arrow table)] -> (DataFrame or None, skip messages, notices); shared by the app loaders and hpc.py.
 
-    if df.isnull().values.any():
-        st.error("Missing values detected. Dropping missing rows.")
-        df = df.dropna()
+    Every file must have the first valid file's columns (reordered to match); markers are cast to float64."""
+    tables, skipped, notices = [], [], []
+    reference = None
+    for name, table in named_tables:
+        # All-blank or unnamed columns (e.g. a trailing comma) read as null-typed and would drop every row.
+        keep = [i for i, f in enumerate(table.schema) if f.name.strip() and not pa.types.is_null(f.type)]
+        if len(keep) < table.num_columns:
+            notices.append(f"{name}: dropped {table.num_columns - len(keep)} empty column(s)")
+            table = table.select(keep)
 
+        processed, skip_msg = _process_single_table(table, name)
+        if processed is None:
+            skipped.append(skip_msg)
+            continue
+        if reference is None:
+            # Text columns of the first valid file (e.g. "Time", "Well") are not markers; drop them from every file.
+            non_numeric = [f.name for f in processed.schema if f.name not in ('SampleID', 'Group')
+                           and not (pa.types.is_integer(f.type) or pa.types.is_floating(f.type))]
+        processed = processed.drop([c for c in non_numeric if c in processed.column_names])
+        if processed.num_columns <= 2:
+            skipped.append(f"Skipping file {name}: it has no marker data.")
+            continue
+        if reference is not None and set(processed.column_names) != set(reference):
+            skipped.append(f"Skipping file {name}: its columns do not match the first file's columns.")
+            continue
+        try:
+            if reference is not None:
+                processed = processed.select(reference)
+            for i, col in enumerate(processed.column_names):
+                if col not in ('SampleID', 'Group'):
+                    processed = processed.set_column(i, col, processed.column(col).cast(pa.float64()))
+        except pa.ArrowException as exc:
+            skipped.append(f"Skipping file {name}: marker values must be numeric ({exc}).")
+            continue
+        if reference is None:
+            reference = processed.column_names
+            if non_numeric:
+                notices.append(f"Dropped non-numeric column(s): {', '.join(non_numeric)}")
+        tables.append(processed)
+
+    if not tables:
+        return None, skipped, notices
+
+    df = pa.concat_tables(tables).to_pandas()
+    n_rows = len(df)
+    df = df.dropna()
+    if len(df) < n_rows:
+        notices.append(f"Dropped {n_rows - len(df)} of {n_rows} rows with missing values")
+    if df.empty:
+        notices.append("No rows left after removing rows with missing values")
+        return None, skipped, notices
+    return df, skipped, notices
+
+
+def _report_load(skipped, notices, save_notice=False):
+    """Show loader messages; with save_notice they also go to st.session_state['_load_notice'] for display after a rerun."""
+    msgs = skipped + notices
+    for msg in msgs:
+        st.warning(msg)
+    # Only Data Processing reads the key; other pages' loads must not overwrite or clear its unseen notice.
+    if not save_notice:
+        return
+    # Replace, never append: some pages reload on every rerun, and a clean load must not keep an older notice.
+    if msgs:
+        st.session_state["_load_notice"] = "; ".join(msgs)
+    else:
+        st.session_state.pop("_load_notice", None)
+
+
+def _df_to_anndata(df):
+    """Convert a combined DataFrame (markers + SampleID/Group) to AnnData."""
     expr_data = df.drop(columns=['SampleID', 'Group'])
     expr_data = expr_data.select_dtypes(include=[float, int])
 
@@ -115,8 +181,7 @@ def _tables_to_anndata(tables):
 def process_uploaded_csv_files(uploaded_files):
     """Streamlit-uploaded CSVs into one AnnData, with a progress bar and column-consistency checks."""
     start_time = time.time()
-    tables = []
-    reference_columns = None
+    named_tables = []
 
     progress_bar = st.progress(0)
     elapsed_time_placeholder = st.empty()
@@ -129,32 +194,19 @@ def process_uploaded_csv_files(uploaded_files):
         current_step += 1
         progress_bar.progress(current_step / total_steps)
         status_placeholder.write(f"Processing file {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
-        table = pv.read_csv(uploaded_file)
-
-        if reference_columns is None:
-            reference_columns = set(table.column_names)
-        else:
-            current_columns = set(table.column_names)
-            if current_columns != reference_columns:
-                st.warning(f"Warning: Column names in {uploaded_file.name} do not match the reference columns!")
-                st.write(f"Found columns: {current_columns}")
-                continue
-
-        processed, skip_msg = _process_single_table(table, uploaded_file.name)
-        if processed is None:
-            st.write(skip_msg)
-            continue
-        tables.append(processed)
-
-    if not tables:
-        progress_bar.progress(1.0)
-        return None
+        named_tables.append((uploaded_file.name, pv.read_csv(uploaded_file)))
 
     current_step += 1
     progress_bar.progress(current_step / total_steps)
     status_placeholder.write("Combining all files into a single table")
 
-    adata = _tables_to_anndata(tables)
+    df, skipped, notices = _combine_tables(named_tables)
+    _report_load(skipped, notices, save_notice=True)
+    if df is None:
+        progress_bar.progress(1.0)
+        return None
+
+    adata = _df_to_anndata(df)
 
     current_step += 1
     progress_bar.progress(1.0)
@@ -179,16 +231,18 @@ def inspect_uploaded_csv_files(uploaded_files):
             except (AttributeError, OSError, ValueError):
                 pass
 
-        # Markers: columns that aren't metadata or a stray 'sample' column.
+        # Markers: columns that aren't metadata, a stray 'sample' column, or empty (dropped on load).
         markers = [
-            c for c in table.column_names
-            if c not in ("SampleID", "Group") and c.lower() != "sample"
+            f.name for f in table.schema
+            if f.name not in ("SampleID", "Group") and f.name.lower() != "sample"
+            and f.name.strip() and not pa.types.is_null(f.type)
         ]
 
         name = uploaded_file.name
-        name_parts = name.replace(".csv", "").split("_")
+        stem = os.path.splitext(name)[0] if name.lower().endswith(".csv") else name
+        name_parts = stem.split("_")
         name_ok = len(name_parts) == 2
-        sample = name_parts[0] if name_ok else name.replace(".csv", "")
+        sample = name_parts[0] if name_ok else stem
         group = name_parts[1] if name_ok else "N/A"
 
         files.append({
@@ -213,19 +267,30 @@ def inspect_uploaded_csv_files(uploaded_files):
     ]
     bad_names = [f["file"] for f in files if not f["name_ok"]]
 
+    # Duplicate file names or SampleIDs would merge into one sample; block them via bad_names.
+    duplicates, seen_files, seen_ids = [], set(), {}
+    for f in files:
+        if f["file"] in seen_files:
+            duplicates.append(f"{f['file']} (same file name uploaded twice)")
+        elif f["name_ok"] and f["SampleID"] in seen_ids:
+            duplicates.append(f"{f['file']} (SampleID '{f['SampleID']}' also used by {seen_ids[f['SampleID']]})")
+        seen_files.add(f["file"])
+        if f["name_ok"]:
+            seen_ids.setdefault(f["SampleID"], f["file"])
+
     return {
         "files": files,
         "all_markers": sorted(union),
         "common_markers": sorted(common),
         "mismatches": mismatches,
-        "bad_names": bad_names,
+        "bad_names": bad_names + duplicates,
+        "duplicates": duplicates,
     }
 
 
 def process_uploaded_csv_to_df(uploaded_files):
     """Like process_uploaded_csv_files but returns the raw DataFrame (with SampleID/Group) instead of AnnData."""
-    tables = []
-    reference_columns = None
+    named_tables = []
 
     progress_bar = st.progress(0)
     status_placeholder = st.empty()
@@ -237,37 +302,17 @@ def process_uploaded_csv_to_df(uploaded_files):
         current_step += 1
         progress_bar.progress(current_step / total_steps)
         status_placeholder.write(f"Processing file {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
-        table = pv.read_csv(uploaded_file)
-
-        if reference_columns is None:
-            reference_columns = set(table.column_names)
-        else:
-            current_columns = set(table.column_names)
-            if current_columns != reference_columns:
-                st.warning(f"Warning: Column names in {uploaded_file.name} do not match the reference columns!")
-                st.write(f"Found columns: {current_columns}")
-                continue
-
-        processed, skip_msg = _process_single_table(table, uploaded_file.name)
-        if processed is None:
-            st.write(skip_msg)
-            continue
-        tables.append(processed)
-
-    if not tables:
-        progress_bar.progress(1.0)
-        return None
+        named_tables.append((uploaded_file.name, pv.read_csv(uploaded_file)))
 
     current_step += 1
     progress_bar.progress(current_step / total_steps)
     status_placeholder.write("Combining all files into a single table")
 
-    combined_table = pa.concat_tables(tables)
-    df = combined_table.to_pandas()
-
-    if df.isnull().values.any():
-        st.error("Missing values detected. Dropping missing rows.")
-        df = df.dropna()
+    df, skipped, notices = _combine_tables(named_tables)
+    _report_load(skipped, notices)
+    if df is None:
+        progress_bar.progress(1.0)
+        return None
 
     progress_bar.progress(1.0)
     status_placeholder.write("Processing complete.")
@@ -278,9 +323,9 @@ def process_uploaded_csv_to_df(uploaded_files):
 def process_directory_csv_files(input_dir):
     """CSV files from a directory into one AnnData; None if no valid CSVs are found."""
     start_time = time.time()
-    tables = []
+    named_tables = []
 
-    csv_files = [f for f in os.listdir(input_dir) if f.endswith('.csv')]
+    csv_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.csv')]
     if not csv_files:
         st.write("No CSV files found in the input directory.")
         return None
@@ -288,19 +333,15 @@ def process_directory_csv_files(input_dir):
     for idx, csv_file in enumerate(csv_files):
         st.write(f"Processing file {idx + 1}/{len(csv_files)}: {csv_file}")
         file_path = os.path.join(input_dir, csv_file)
-        table = pv.read_csv(file_path)
+        named_tables.append((csv_file, pv.read_csv(file_path)))
 
-        processed, skip_msg = _process_single_table(table, csv_file)
-        if processed is None:
-            st.write(skip_msg)
-            continue
-        tables.append(processed)
-
-    if not tables:
+    df, skipped, notices = _combine_tables(named_tables)
+    _report_load(skipped, notices)
+    if df is None:
         st.write("No valid CSV files were processed.")
         return None
 
-    adata = _tables_to_anndata(tables)
+    adata = _df_to_anndata(df)
     st.write(f"Data loading and processing completed in {time.time() - start_time:.2f} seconds")
     return adata
 
@@ -335,11 +376,25 @@ def run_combat_correction(adata, batch_key='Batch', covariates=('Group',)):
                 f"signal. Assign batches that each span multiple {cov} levels."
             )
 
-    protected = [c for c in covariates if c in adata.obs.columns]
-    sc.pp.combat(adata, key=batch_key)
+    protected = [c for c in covariates if c in adata.obs.columns and adata.obs[c].nunique() >= 2]
+    # ComBat needs numeric covariates: k-1 dummy columns per covariate (a raw string column is singular).
+    dummies = (pd.get_dummies(adata.obs[protected].astype(str), drop_first=True, dtype=float)
+               if protected else pd.DataFrame())
+    temp_cols = [f"_combat_cov_{i}" for i in range(dummies.shape[1])]
+    for name, col in zip(temp_cols, dummies.columns):
+        adata.obs[name] = dummies[col].to_numpy()
+    try:
+        sc.pp.combat(adata, key=batch_key, covariates=temp_cols or None)
+    except (np.linalg.LinAlgError, ValueError):
+        return False, (
+            f"Batch is confounded with {', '.join(protected) or 'the design'} (singular ComBat "
+            "design), so batch correction was not applied."
+        )
+    finally:
+        adata.obs.drop(columns=temp_cols, inplace=True)
     return True, (
         f"ComBat applied across {n_batches} batches"
-        + (f" (crossed with {', '.join(protected)}, so that signal is retained)."
+        + (f", with {', '.join(protected)} passed to ComBat as covariate(s) to protect that signal."
            if protected else ".")
     )
 
@@ -588,14 +643,20 @@ def differential_abundance_test(prop_df, sample_group, alpha=0.05, min_samples=2
 
 
 # Path validation (traversal prevention).
-def validate_path(path, base=None):
-    """Return abs path if it resolves inside base (default cwd), else raise ValueError."""
-    if base is None:
-        base = os.path.abspath(os.getcwd())
+def validate_path(path, base):
+    """Return abs path if it resolves inside base, else raise ValueError."""
     abs_path = os.path.abspath(path)
     if not abs_path.startswith(base + os.sep) and abs_path != base:
         raise ValueError(f"Path '{path}' is outside the allowed directory.")
     return abs_path
+
+
+def user_dir(path):
+    """Abs path for a directory the user typed, "" if blank; any location is fine (local desktop/HPC app)."""
+    # Windows "Copy as path" wraps the path in quotes.
+    path = path.strip().strip('"\'').strip()
+    # abspath("") is the cwd, so keep blank input blank for the caller's empty check.
+    return os.path.abspath(os.path.expanduser(path)) if path else ""
 
 
 # Standardised plot controls.

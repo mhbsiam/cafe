@@ -16,12 +16,11 @@ def _as_1d(values):
     return np.asarray(values, dtype=float).ravel()
 
 
-def _cutoff_from_proba(x, proba):
-    """First value where the positive posterior crosses 0.5 (else NaN)."""
-    order = np.argsort(x)
-    xs, ps = x[order], proba[order]
-    crossings = np.where(np.diff(np.sign(ps - 0.5)) != 0)[0]
-    return float(xs[crossings[0]]) if crossings.size else float("nan")
+def _cutoff_from_model(model):
+    """Value between the two component means where the (clamped) positive posterior reaches 0.5."""
+    lo, hi = sorted(model["gmm"].means_.ravel())
+    grid = np.linspace(lo, hi, 1001)
+    return float(grid[np.argmax(_score_with_model(grid, model) >= 0.5)])
 
 
 def fit_marker_gmm(values, random_state=0, max_fit=50000):
@@ -55,7 +54,8 @@ def fit_marker_gmm(values, random_state=0, max_fit=50000):
     pos = int(np.argmax(means))          # positive = higher-mean component
     neg = 1 - pos
 
-    proba = gmm2.predict_proba(xcol)[:, pos]
+    model = {"gmm": gmm2, "pos": pos}
+    proba = _score_with_model(x, model)
 
     # Cohen's d over the *average* component SD: not dominated by a broad
     # positive shoulder the way sqrt(mean(variance)) is.
@@ -66,20 +66,26 @@ def fit_marker_gmm(values, random_state=0, max_fit=50000):
     )
 
     info = {
-        "cutoff": _cutoff_from_proba(x, proba),
+        "cutoff": _cutoff_from_model(model),
         "means": (float(means[neg]), float(means[pos])),
         "weights": (float(weights[neg]), float(weights[pos])),
         "separation": separation,
         "informative": informative,
-        "model": {"gmm": gmm2, "pos": pos},
+        "model": model,
     }
     return proba, info
 
 
 def _score_with_model(values, model):
-    """Positive-component posteriors for ``values`` under a fitted GMM bundle."""
-    x = _as_1d(values).reshape(-1, 1)
-    return model["gmm"].predict_proba(x)[:, model["pos"]]
+    """Positive-component posteriors for ``values`` under a fitted GMM bundle, made monotone in x."""
+    x = _as_1d(values)
+    proba = model["gmm"].predict_proba(x.reshape(-1, 1))[:, model["pos"]]
+    # A wider positive component makes the raw posterior rise again in the far negative tail; clamp
+    # outside the two means so dim cells are never called positive (and bright ones always are).
+    means = model["gmm"].means_.ravel()
+    proba[x <= means[1 - model["pos"]]] = 0.0
+    proba[x >= means[model["pos"]]] = 1.0
+    return proba
 
 
 def compute_positive_posteriors(adata, sample_key="SampleID", random_state=0,
