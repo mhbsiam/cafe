@@ -1,13 +1,12 @@
 [workspace]
 name = "cafe-app"
-version = "3.0.0"
+version = "3.1.0"
 description = "Spectral FlowCytometry visualization and analysis tool"
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 
 [tasks]
 cafe = "python cafe.py"
-web = "python web.py"
 test = "pytest tests/ -v"
 
 [dependencies]
@@ -28,6 +27,7 @@ statsmodels = "==0.14.6"
 pyarrow = "==25.0.0"
 scanpy = "==1.12.2"
 anndata = "==0.13.1"
+natsort = "==8.4.0"
 cliffs-delta = "==1.0.0"
 matplotlib = "==3.10.9"
 seaborn = "==0.13.2"

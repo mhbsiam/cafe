@@ -1,4 +1,4 @@
-"""Shared landing-page content so the desktop (app/CAFE.py) and hosted (web/CAFE.py) entry points stay in sync."""
+"""Landing-page content for the desktop entry point (app/CAFE.py)."""
 import os
 
 import pandas as pd

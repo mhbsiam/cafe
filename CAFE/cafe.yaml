@@ -15,6 +15,7 @@ dependencies:
       - statsmodels==0.14.6
       - scanpy==1.12.2
       - anndata==0.13.1
+      - natsort==8.4.0
       - cliffs-delta==1.0.0
       - matplotlib==3.10.9
       - seaborn==0.13.2
