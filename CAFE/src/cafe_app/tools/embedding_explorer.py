@@ -1,4 +1,6 @@
 """Interactive UMAP explorer: a live Plotly Scattergl companion to the static figures; additive, never writes files or mutates adata."""
+import hashlib
+
 import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
@@ -189,7 +191,10 @@ def _densify(X):
 
 def _background_stats(adata):
     """All-cell mean & median per marker, cached per session (median computed column-by-column to avoid densifying)."""
-    key = (adata.n_obs, adata.n_vars, tuple(map(str, adata.var_names)))
+    # Shape and markers alone match e.g. a ComBat-corrected copy; a checksum of ~1000 evenly spaced rows tells them apart cheaply.
+    rows = np.linspace(0, adata.n_obs - 1, min(adata.n_obs, 1000)).astype(int)
+    digest = hashlib.blake2b(np.ascontiguousarray(_densify(adata.X[rows])).tobytes(), digest_size=16).hexdigest()
+    key = (adata.n_obs, adata.n_vars, tuple(map(str, adata.var_names)), digest)
     cached = st.session_state.get("_cafe_bg_stats")
     if cached and cached["key"] == key:
         return cached["mean"], cached["median"]
