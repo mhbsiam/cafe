@@ -57,6 +57,31 @@ def _styled_umap(adata, color, palette, legend_loc="right margin"):
     return fig
 
 
+def _signature_definitions(edited, markers):
+    """Build {cell_type: {marker: +/-}} from the editor rows; also return 1-based rows with markers but no name,
+    and names used by more than one row (case-insensitive)."""
+    definitions, unnamed, duplicates = {}, [], []
+    seen = {}  # casefolded name -> first spelling, so the error names what the user typed first
+    for pos, (_, row) in enumerate(edited.iterrows(), start=1):
+        # Cleared or newly added cells come back as None/NaN, and str() of those is "None"/"nan".
+        name = row["Cell type"]
+        name = "" if pd.isna(name) else str(name).strip()
+        states = {m: row[m] for m in markers if row[m] in ("+", "-")}
+        if not states:
+            continue
+        if not name:
+            unnamed.append(pos)
+            continue
+        key = name.casefold()
+        if key in seen:
+            if seen[key] not in duplicates:
+                duplicates.append(seen[key])
+            continue
+        seen[key] = name
+        definitions[name] = states
+    return definitions, unnamed, duplicates
+
+
 # ── Method selection (first choice on the page) ───────────────────────────────
 
 method = st.radio(
@@ -92,22 +117,27 @@ if uploaded_file and submit_upload:
 if st.session_state.adata is not None:
     adata = st.session_state.adata
 
+    # Manual mode needs Leiden clusters; check before the UMAP block so a missing column cannot crash every rerun.
+    if method == "Manual" and 'leiden' not in adata.obs:
+        st.error(
+            "This AnnData has no 'leiden' clusters. Cluster the data first (e.g. in Data Processing), "
+            "or use the Probabilistic (GMM) method, which does not need clusters."
+        )
+        st.stop()
+
     # A UMAP embedding may be absent (the file never had one, or it was dropped when the session was
     # restored on refresh). Compute it once and persist, so the map renders and survives a refresh.
     if 'X_umap' not in adata.obsm:
         with st.spinner("Computing UMAP (not found in file)…"):
             if 'neighbors' not in adata.uns:
-                sc.pp.neighbors(adata)
+                sc.pp.neighbors(adata, use_rep='X_pca' if 'X_pca' in adata.obsm else 'X')
             sc.tl.umap(adata)
         set_adata(adata, source="cluster_annotation:umap")
 
     # Manual mode (unchanged behaviour)
     if method == "Manual":
         # Detect clusters and sort numerically where possible
-        leiden_clusters = sorted(
-            adata.obs['leiden'].astype(str).unique(),
-            key=lambda x: int(x) if x.isdigit() else x
-        )
+        leiden_clusters = safe_sort_clusters(adata.obs['leiden'].astype(str).unique())
         n_total = len(leiden_clusters)
 
         # Ensure session_state keys exist (first render after load)
@@ -174,9 +204,8 @@ if st.session_state.adata is not None:
             }
 
             # Validate: detect empty (unmapped) clusters
-            unmapped_clusters = sorted(
-                [c for c, name in cell_type_mapping.items() if not name],
-                key=lambda x: int(x) if x.isdigit() else x
+            unmapped_clusters = safe_sort_clusters(
+                [c for c, name in cell_type_mapping.items() if not name]
             )
 
             if unmapped_clusters:
@@ -290,15 +319,17 @@ if st.session_state.adata is not None:
             key="celltype_def_editor",
         )
 
-        # Build {cell_type: {marker: +/-}} from non-empty rows.
-        definitions = {}
-        for _, row in edited.iterrows():
-            name = str(row["Cell type"]).strip()
-            if not name:
-                continue
-            states = {m: row[m] for m in markers if row[m] in ("+", "-")}
-            if states:
-                definitions[name] = states
+        definitions, unnamed_rows, duplicate_names = _signature_definitions(edited, markers)
+        if unnamed_rows:
+            st.error(
+                "Row(s) " + ", ".join(map(str, unnamed_rows)) + " have markers but no "
+                "cell type name. Name them or clear their markers to run."
+            )
+        if duplicate_names:
+            st.error(
+                "Cell type name(s) repeated: " + ", ".join(duplicate_names) + " (names are not "
+                "case-sensitive). Each cell type needs one row: merge or rename them to run."
+            )
 
         # ── Confidence thresholds ─────────────────────────────────────────────
         section_header("Confidence thresholds")
@@ -352,7 +383,7 @@ if st.session_state.adata is not None:
         if not definitions:
             st.info("Add at least one cell type with one or more +/− markers to enable the run.")
 
-        if st.button("Run probabilistic annotation", type="primary", disabled=not definitions):
+        if st.button("Run probabilistic annotation", type="primary", disabled=not definitions or bool(unnamed_rows) or bool(duplicate_names)):
             progress_bar = st.progress(0.0, text="Fitting per-sample marker gates…")
             posteriors, diagnostics = compute_positive_posteriors(
                 adata,

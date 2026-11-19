@@ -177,6 +177,11 @@ def _validate_merge_groups(groups: list[dict], cluster_ids: list[str]) -> list[s
         if not sources:
             errors.append(f"Merge group \"{t}\" has a name but no source clusters selected.")
             continue
+        if t in cluster_ids and t not in sources:
+            errors.append(
+                f"New name \"{t}\" is an existing cluster that is not in this group, so that cluster "
+                f"would be silently absorbed. Pick another name or add cluster \"{t}\" to the group."
+            )
         for s in sources:
             if s not in cluster_ids:
                 errors.append(f"Cluster \"{s}\" (in group \"{t}\") does not exist in the loaded data.")
@@ -212,23 +217,32 @@ if uploaded_file and submit_upload:
         # Reset the builder (and any prior merge result) for the new file
         _reset_merge_builder()
         st.session_state.pop("merge_result", None)
-    n_cells, n_markers = st.session_state.adata.shape
-    n_clusters = len(_cluster_ids(st.session_state.adata))
-    st.success(
-        f"Loaded {n_cells:,} cells \u00b7 {n_markers} markers \u00b7 {n_clusters} Leiden clusters"
-    )
+    if 'leiden' in st.session_state.adata.obs:
+        n_cells, n_markers = st.session_state.adata.shape
+        n_clusters = len(_cluster_ids(st.session_state.adata))
+        st.success(
+            f"Loaded {n_cells:,} cells \u00b7 {n_markers} markers \u00b7 {n_clusters} Leiden clusters"
+        )
 
 # ── Phase 2: Workspace ────────────────────────────────────────────────────────
 
 if st.session_state.adata is not None:
     adata = st.session_state.adata
 
+    # Checked before the UMAP block so an unclustered file fails fast instead of persisting a UMAP and crashing.
+    if 'leiden' not in adata.obs:
+        st.error(
+            "This AnnData has no 'leiden' clusters. Cluster the data first "
+            "(e.g. in Data Processing), then load the clustered .h5ad here."
+        )
+        st.stop()
+
     # A UMAP embedding may be absent (the file never had one, or it was dropped when the session was
     # restored on refresh). Compute it once and persist, so the map renders and survives a refresh.
     if 'X_umap' not in adata.obsm:
         with st.spinner("Computing UMAP (not found in file)…"):
             if 'neighbors' not in adata.uns:
-                sc.pp.neighbors(adata)
+                sc.pp.neighbors(adata, use_rep='X_pca' if 'X_pca' in adata.obsm else 'X')
             sc.tl.umap(adata)
         set_adata(adata, source="merge_clusters:umap")
 
@@ -266,7 +280,7 @@ if st.session_state.adata is not None:
                     target_val = st.text_input(
                         "New name",
                         key=f"merge_target_{i}",
-                        placeholder=f"e.g. {i + 1}",
+                        placeholder="e.g. T cells",
                         label_visibility="visible",
                     )
                 with c2:
