@@ -6,16 +6,14 @@ import sys
 import time
 import gc
 import pandas as pd
-import numpy as np
 import scanpy as sc
 import pyarrow.csv as pv
-import pyarrow as pa
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
-from utils import run_combat_correction, _process_single_table
+from utils import run_combat_correction, _combine_tables, _df_to_anndata
 
 
 
@@ -41,10 +39,10 @@ parser.add_argument('--batch-map', dest='batch_map', default=None,
 
 def process_csv_files(input_dir, output_dir):
     start_time = time.time()
-    tables = []
+    named_tables = []
 
     # Get list of CSV files
-    csv_files = [f for f in os.listdir(input_dir) if f.endswith('.csv')]
+    csv_files = [f for f in os.listdir(input_dir) if f.lower().endswith('.csv')]
     if not csv_files:
         print("No CSV files found in the input directory.")
         return None
@@ -53,30 +51,17 @@ def process_csv_files(input_dir, output_dir):
     for idx, csv_file in enumerate(csv_files):
         print(f"Processing file {idx + 1}/{len(csv_files)}: {csv_file}")
         file_path = os.path.join(input_dir, csv_file)
-        table = pv.read_csv(file_path)
+        named_tables.append((csv_file, pv.read_csv(file_path)))
 
-        # Shared parser so the HPC path and the app use one implementation.
-        processed, skip_msg = _process_single_table(table, csv_file)
-        if processed is None:
-            print(skip_msg)
-            continue
-        tables.append(processed)
-
-    # Combine tables
-    if not tables:
+    # Shared parser so the HPC path and the app use one implementation.
+    df, skipped, notices = _combine_tables(named_tables)
+    for msg in skipped + notices:
+        print(msg)
+    if df is None:
         print("No valid CSV files were processed.")
         return None
 
-    combined_table = pa.concat_tables(tables)
-    df = combined_table.to_pandas()
-    df.dropna(inplace=True)
-
-    # Create AnnData object
-    expr_data = df.drop(columns=['SampleID', 'Group']).select_dtypes(include=[np.number])
-    metadata = df[['SampleID', 'Group']]
-    adata = sc.AnnData(expr_data)
-    adata.obs = metadata
-    adata.var_names = expr_data.columns.astype(str)
+    adata = _df_to_anndata(df)
 
     # Save combined data
     combined_output_path = os.path.join(output_dir, 'combined_updated_files.csv')
@@ -134,11 +119,12 @@ def batch_correction(adata, batch_map_path):
         print(f"Batch correction skipped: {msg}")
         adata.obs.drop(columns=['Batch'], inplace=True, errors='ignore')
 
-def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, output_dir):
+def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, output_dir, use_rep='X'):
     for n_neighbors in n_neighbors_list:
-        print(f"\nComputing neighbors with n_neighbors={n_neighbors}, metric={metric}")
+        print(f"\nComputing neighbors with n_neighbors={n_neighbors}, metric={metric}, use_rep={use_rep}")
         random_state = 50
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors, method='umap', metric=metric, random_state=random_state)
+        sc.pp.neighbors(adata, n_neighbors=n_neighbors, use_rep=use_rep, method='umap', metric=metric,
+                        random_state=random_state)
         sc.tl.umap(adata, min_dist=min_dist, random_state=random_state)
         print(f"UMAP computed with min_dist={min_dist}")
 
@@ -207,12 +193,13 @@ def main():
         print("No data to process. Exiting.")
         return
 
-    # Perform PCA if requested
-    if args.pca.lower() != 'none':
-        perform_pca(adata, args.pca, args.cutoff, args.output)
-
-    # Batch correction
+    # Batch correction (before PCA, so PCA and clustering use the corrected data)
     batch_correction(adata, args.batch_map)
+
+    # Perform PCA if requested
+    run_pca = args.pca.lower() != 'none'
+    if run_pca:
+        perform_pca(adata, args.pca, args.cutoff, args.output)
 
     # Run UMAP and Leiden clustering
     run_umap_leiden(
@@ -221,7 +208,8 @@ def main():
         n_neighbors_list=args.nneighbor,
         min_dist=args.min_dist,
         metric=args.distance,
-        output_dir=args.output
+        output_dir=args.output,
+        use_rep='X_pca' if run_pca else 'X',
     )
 
 if __name__ == '__main__':
