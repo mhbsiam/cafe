@@ -5,7 +5,8 @@ template: splash
 hero:
   tagline: Analyze spectral flow cytometry data and produce publication-ready figures without writing code.
   image:
-    file: ../../assets/logo.png
+    # Raw HTML: Starlight's `file` hero is resized to 400x400, and Astro 7 crops that wide logo.
+    html: '<img src="/cafe/hero-logo.png" alt="CAFE logo" width="400" height="105" />'
   actions:
     - text: Get Started
       link: /cafe/getting-started/introduction
