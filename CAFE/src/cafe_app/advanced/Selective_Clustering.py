@@ -11,7 +11,7 @@ import scanpy as sc
 import streamlit as st
 
 from theme import IMG_DIR, apply_theme, page_header
-from utils import process_uploaded_csv_to_df, run_combat_correction
+from utils import NUMBA_LOCK, process_uploaded_csv_to_df, run_combat_correction
 from session_store import clear_current_data, set_adata
 
 st.set_page_config(layout="centered")
@@ -169,35 +169,38 @@ def compute_umap_leiden(adata):
             random_state = 50
             if st.session_state.get('sel_pca_done', False) and 'X_pca' in adata.obsm:
                 st.write("Using PCA results for clustering.")
-                sc.pp.neighbors(
-                    adata,
-                    n_neighbors=n_neighbors,
-                    method='umap',
-                    use_rep='X_pca',
-                    metric=selected_metric,
-                    random_state=random_state
-                )
+                with NUMBA_LOCK:
+                    sc.pp.neighbors(
+                        adata,
+                        n_neighbors=n_neighbors,
+                        method='umap',
+                        use_rep='X_pca',
+                        metric=selected_metric,
+                        random_state=random_state
+                    )
             else:
                 st.write("Using raw data for clustering.")
-                sc.pp.neighbors(
-                    adata,
-                    n_neighbors=n_neighbors,
-                    method='umap',
-                    use_rep='X',
-                    metric=selected_metric,
-                    random_state=random_state
-                )
+                with NUMBA_LOCK:
+                    sc.pp.neighbors(
+                        adata,
+                        n_neighbors=n_neighbors,
+                        method='umap',
+                        use_rep='X',
+                        metric=selected_metric,
+                        random_state=random_state
+                    )
 
             sc.tl.umap(adata, min_dist=min_dist, random_state=random_state)
 
-            sc.tl.leiden(
-                adata,
-                resolution=resolution,
-                flavor="igraph",
-                n_iterations=2,
-                directed=False,
-                random_state=random_state
-            )
+            with NUMBA_LOCK:
+                sc.tl.leiden(
+                    adata,
+                    resolution=resolution,
+                    flavor="igraph",
+                    n_iterations=2,
+                    directed=False,
+                    random_state=random_state
+                )
 
             cluster_sample_counts = adata.obs.groupby(['leiden', 'SampleID'], observed=False).size().unstack(fill_value=0)
 

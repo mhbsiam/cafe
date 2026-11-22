@@ -11,7 +11,7 @@ import scanpy as sc
 import streamlit as st
 
 from theme import IMG_DIR, apply_theme, page_header, section_header
-from utils import safe_flatten, safe_sort_clusters
+from utils import NUMBA_LOCK, safe_flatten, safe_sort_clusters
 from session_store import set_adata
 from celltype_gmm import (
     compute_positive_posteriors,
@@ -130,7 +130,8 @@ if st.session_state.adata is not None:
     if 'X_umap' not in adata.obsm:
         with st.spinner("Computing UMAP (not found in file)…"):
             if 'neighbors' not in adata.uns:
-                sc.pp.neighbors(adata, use_rep='X_pca' if 'X_pca' in adata.obsm else 'X')
+                with NUMBA_LOCK:
+                    sc.pp.neighbors(adata, use_rep='X_pca' if 'X_pca' in adata.obsm else 'X')
             sc.tl.umap(adata)
         set_adata(adata, source="cluster_annotation:umap")
 

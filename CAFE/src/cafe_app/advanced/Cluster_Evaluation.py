@@ -13,7 +13,7 @@ from scipy.spatial.distance import cdist
 from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 
 from theme import IMG_DIR, apply_theme, page_header
-from utils import process_directory_csv_files, user_dir
+from utils import NUMBA_LOCK, process_directory_csv_files, user_dir
 
 st.set_page_config(layout="centered")
 apply_theme()
@@ -97,7 +97,8 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
     resolutions_used, neighbors_used = [], []
 
     for n_neighbors in n_neighbors_list:
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors, use_rep='X_pca', metric=metric, random_state=50)
+        with NUMBA_LOCK:
+            sc.pp.neighbors(adata, n_neighbors=n_neighbors, use_rep='X_pca', metric=metric, random_state=50)
         sc.tl.umap(adata, min_dist=min_dist, random_state=50)
 
         for res_idx, resolution in enumerate(resolutions):
@@ -105,7 +106,8 @@ def run_umap_leiden(adata, resolutions, n_neighbors_list, min_dist, metric, outp
                 f"Step {current_step + 1} of {total_steps}: "
                 fr"n\_neighbors={n_neighbors}, resolution={resolution}"
             )
-            sc.tl.leiden(adata, resolution=resolution, random_state=50, flavor=flavor, n_iterations=2, directed=False)
+            with NUMBA_LOCK:
+                sc.tl.leiden(adata, resolution=resolution, random_state=50, flavor=flavor, n_iterations=2, directed=False)
 
             X = adata.obsm['X_pca']
             cluster_labels = adata.obs['leiden'].astype(int)

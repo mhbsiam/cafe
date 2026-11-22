@@ -224,6 +224,7 @@ _CLEARABLE_KEYS = (
     "_upload_review", "_upload_files", "_load_notice", "_qc_total_signal", "_qc_reco_cap_prev",
     "_qc_pending", "_pca_pending", "_batch_pending", "_umap_pending", "_show_batch_diag",
     "_pre_combat_pca_batch", "_pre_combat_pca_group", "_umap_resolution", "_packaging_started",
+    "_graph_done", "_cluster_stability",
     "batch_assignment_editor",
     "sel_pca_done", "sel_batch_correction_done", "sel_umap_computed", "sel_leiden_computed",
     "sel_perform_pca", "sel_pca_solver", "sel_variance_threshold",

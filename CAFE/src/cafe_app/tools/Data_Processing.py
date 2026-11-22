@@ -29,12 +29,18 @@ from theme import (
     stepper,
 )
 from utils import (
+    N_REFERENCE,
+    NUMBA_LOCK,
+    cluster_stability,
     compute_batch_emd,
     inspect_uploaded_csv_files,
+    leiden_stability,
     marker_robust_scales,
     process_uploaded_csv_files,
     recommend_nmads,
     run_combat_correction,
+    run_umap_parallel,
+    suggest_resolution,
     summarize_batch_effect,
 )
 from session_store import _CLEARABLE_PREFIXES, clear_current_data, set_adata
@@ -44,6 +50,7 @@ apply_theme()
 st.logo(os.path.join(IMG_DIR, 's_logo.png'))
 
 _STEPS = ["Upload", "QC", "PCA", "Batch", "UMAP + Leiden"]
+_STABLE_CLUSTER = 0.75  # per-cluster stability below this is flagged
 
 
 # Core helpers
@@ -160,6 +167,14 @@ GROUP_PALETTE = [
     "#D55E00",  # vermillion
     "#000000",  # black
 ]
+
+
+def _umap_panel(adata, color, title, **kwargs):
+    """UMAP snapshot as PNG bytes; fixed canvas + axes position gives every panel the same pixel size."""
+    fig = plt.figure(figsize=(6, 5))
+    ax = fig.add_axes([0.12, 0.12, 0.60, 0.78])
+    sc.pl.umap(adata, color=color, ax=ax, show=False, title=title, frameon=True, **kwargs)
+    return _snapshot_fig(fig, tight=False)
 
 
 def _pca_scatter(adata, color, palette=None, title=""):
@@ -310,8 +325,31 @@ def _methods_paragraph(adata, qc, pca, batch, umap):
         f"{umap.get('use_rep', 'the expression matrix')}, embedded with UMAP "
         f"(min_dist={umap.get('min_dist')}), and clustered with the Leiden algorithm "
         f"(resolution={umap.get('resolution')}), yielding {umap.get('n_clusters')} "
-        "clusters. A fixed random seed (50) was used throughout."
+        "clusters."
     )
+    stab = st.session_state.get("_params_stability")
+    if stab:
+        measures = [
+            f"{label} ({n} repeats)"
+            for label, n in (
+                (f"subsampling of 80% of cells, each compared with {N_REFERENCE} reference runs", stab["subsamples"]),
+                ("different random seeds", stab["seeds"]),
+            )
+            if n
+        ]
+        parts.append(
+            f"Clustering stability across Leiden resolutions was assessed with the adjusted Rand index "
+            f"under {' and '.join(measures)}, on {stab['cells']} cells; the stable range was "
+            f"{stab['lowest']}-{stab['suggested']}."
+        )
+    if umap.get("fast_umap"):
+        parts.append(
+            "A fixed random seed (50) was used for the neighborhood graph and clustering. "
+            "The UMAP layout was computed in parallel, so its coordinates are not "
+            "exactly reproducible between runs; cluster assignments are unaffected."
+        )
+    else:
+        parts.append("A fixed random seed (50) was used throughout.")
     parts.append(f"When using CAFE, please cite: {_CAFE_CITATION}")
     return " ".join(parts)
 
@@ -332,7 +370,7 @@ def build_parameters_report(adata):
     add("CAFE: Data Processing: Methods & Parameters")
     add("=" * 52)
     add(f"Generated: {datetime.datetime.now():%Y-%m-%d %H:%M:%S}")
-    add("Random seed: 50 (neighbors, UMAP, Leiden)")
+    add(f"Random seed: 50 (neighbors, {'' if umap.get('fast_umap') else 'UMAP, '}Leiden)")
     add("")
 
     add("INPUT DATA")
@@ -399,10 +437,28 @@ def build_parameters_report(adata):
     add(f"n_neighbors      : {umap.get('n_neighbors')}")
     add(f"Distance metric  : {umap.get('metric')}")
     add(f"UMAP min_dist    : {umap.get('min_dist')}")
-    add(f"Leiden flavor    : {umap.get('leiden_flavor')}")
+    add(
+        "UMAP layout      : "
+        + ("parallel (coordinates vary between runs)" if umap.get("fast_umap") else "seeded (reproducible)")
+    )
+    add(f"Leiden flavor   : {umap.get('leiden_flavor')}")
     add(f"Leiden resolution: {umap.get('resolution')}")
     add(f"Clusters found   : {umap.get('n_clusters')}")
     add("")
+
+    stab = s.get("_params_stability")
+    if stab:
+        add("RESOLUTION STABILITY")
+        add("-" * 52)
+        add(f"Cells used       : {stab['cells']}" + ("" if stab["cells"] == adata.n_obs else " (random sample)"))
+        add(f"Subsamples (80%) : {stab['subsamples'] or 'not run'}")
+        if stab["subsamples"]:
+            add(f"Reference runs   : {N_REFERENCE} (each subsample is compared with every one)")
+        add(f"Seed reruns      : {stab['seeds'] or 'not run'}")
+        add(f"Stable range     : {stab['lowest']} to {stab['suggested']} (within one standard error of the best)")
+        add(f"Suggested        : {stab['suggested']}")
+        add(stab["table"].round(3).to_string(index=False))
+        add("")
 
     add("SOFTWARE VERSIONS")
     add("-" * 52)
@@ -426,8 +482,8 @@ def build_parameters_report(adata):
     return "\n".join(L)
 
 
-def build_outputs_zip(adata, resolution, umap_pngs=None):
-    """Package all analysis outputs into a ZIP and return (bytes, filename); umap_pngs is {name: png_bytes}."""
+def build_outputs_zip(adata, resolution, umap_pngs=None, tables=None):
+    """Package all analysis outputs into a ZIP and return (bytes, filename); umap_pngs is {name: png_bytes}, tables is {name: DataFrame}."""
     random_number = random.randint(1000, 9999)
     zip_file_name = f"analysis_outputs_{random_number}.zip"
 
@@ -507,6 +563,10 @@ def build_outputs_zip(adata, resolution, umap_pngs=None):
                 f"per_sample_clustered/{fname}.csv",
                 sample_csv.getvalue(),
             )
+
+        for name, table in (tables or {}).items():
+            if table is not None:
+                zip_file.writestr(f"{name}_{random_number}.csv", table.to_csv(index=False))
 
         # The UMAP figures shown on the results page, as they were rendered.
         for name, png_bytes in (umap_pngs or {}).items():
@@ -666,6 +726,8 @@ _RUN_STATE_KEYS = [
     "_pca_pending",
     "_batch_pending",
     "_umap_pending",
+    "_graph_done",
+    "_cluster_stability",
     "_pre_combat_pca_batch",
     "_pre_combat_pca_group",
 ]
@@ -1533,6 +1595,24 @@ if not st.session_state.umap_computed:
             with umap_col2:
                 st.image(umap_fig_group, width="stretch")
 
+        cluster_scores = st.session_state.get("_cluster_stability")
+        if cluster_scores is not None:
+            section_header(
+                "Cluster stability",
+                subtitle="How often each cluster keeps the same cells when Leiden is rerun with other seeds (1 = always).",
+            )
+            stab_col1, stab_col2 = st.columns(2)
+            with stab_col1:
+                st.image(st.session_state.get("_umap_fig_stability"), width="stretch")
+            with stab_col2:
+                st.dataframe(cluster_scores.round(2), hide_index=True, width="stretch")
+            n_low = int((cluster_scores["stability"] < _STABLE_CLUSTER).sum())
+            if n_low:
+                st.warning(
+                    f"{n_low} of {len(cluster_scores)} clusters score below {_STABLE_CLUSTER}. Their borders change "
+                    "between runs, so treat them with care or combine them on the Merge Clusters page."
+                )
+
         # One-line run summary.
         _pca = "PCA" if st.session_state.get("pca_selected") else "no PCA"
         _batch = st.session_state.get("_params_batch", {}).get("method", "None")
@@ -1547,6 +1627,11 @@ if not st.session_state.umap_computed:
         umap_pngs = {
             "umap_leiden_clusters": st.session_state.get("_umap_fig_leiden"),
             f"umap_{_safe_filename(group_key)}": st.session_state.get("_umap_fig_group"),
+            "umap_cluster_stability": st.session_state.get("_umap_fig_stability") if cluster_scores is not None else None,
+        }
+        tables = {
+            "cluster_stability": cluster_scores,
+            "resolution_stability": st.session_state.get("_params_stability", {}).get("table"),
         }
 
         # Let the user take in the UMAPs first, then package. The 2s beat runs once
@@ -1562,7 +1647,7 @@ if not st.session_state.umap_computed:
             resolution = st.session_state.get("_umap_resolution", 0.5)
             try:
                 with st.spinner("Packaging your files for download…"):
-                    zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs)
+                    zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs, tables)
                 st.session_state["_last_zip_buffer"] = zip_bytes
                 st.session_state["_last_zip_name"] = zip_name
             except Exception as exc:  # noqa: BLE001 (surface the error without crashing the page)
@@ -1594,7 +1679,7 @@ if not st.session_state.umap_computed:
             with st.spinner(
                 "Preparing your download. This can take a moment for large datasets…"
             ):
-                zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs)
+                zip_bytes, zip_name = build_outputs_zip(adata, resolution, umap_pngs, tables)
             st.session_state["_last_zip_buffer"] = zip_bytes
             st.session_state["_last_zip_name"] = zip_name
             st.rerun()
@@ -1619,117 +1704,220 @@ if not st.session_state.umap_computed:
 
         st.divider()
 
+        if st.button("Change resolution", type="secondary", key="dp_change_resolution"):
+            # Back to the resolution step; the graph, UMAP and stability sweep are kept.
+            for key in ("_umap_pending", "leiden_computed", "_packaging_started", "_last_zip_buffer",
+                        "_last_zip_name", "_cluster_stability"):
+                st.session_state.pop(key, None)
+            st.rerun()
+
         if st.button("Start over", type="secondary", key="dp_start_over"):
             clear_current_data(extra_keys=_RUN_STATE_KEYS)
             st.rerun()
 
         st.stop()
 
-    with st.form(key="umap_leiden_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            resolution = st.slider(
-                "Leiden Resolution",
-                min_value=0.01,
-                max_value=2.5,
-                value=0.5,
-                step=0.01,
-                help="Lower values yield fewer, larger clusters; higher values yield more, smaller clusters.",
-            )
-            n_neighbors = st.slider(
-                "n_neighbors",
-                min_value=5,
-                max_value=50,
-                value=15,
-                step=1,
-                help="Controls the local neighborhood size.",
-            )
-        with col2:
-            min_dist = st.slider(
-                "UMAP min_dist",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.1,
-                step=0.01,
-                help="Controls how tightly UMAP packs points together.",
-            )
-            metric_options = [
-                "euclidean",
-                "manhattan",
-                "cosine",
-                "correlation",
-                "minkowski",
-            ]
-            selected_metric = st.selectbox(
-                "Distance metric",
-                options=metric_options,
-                index=0,
-                help="Determines how distances between data points are calculated.",
-            )
+    adata = st.session_state.get("adata")
 
-        with col1:
-            dim_option = ["None", "X_pca", "X_umap"]
-            pca_default_index = 1 if st.session_state.get("pca_selected", False) else 0
-            selected_dim = st.selectbox(
-                "Dimension reduction metric to use",
-                options=dim_option,
-                index=pca_default_index,
-                help="Select None if you have not reduced the data using PCA.",
-            )
-
-        submit_button = st.form_submit_button(
-            label="Apply and Compute", type="primary"
-        )
-
-    if submit_button:
-        adata = st.session_state.get("adata")
-        if not st.session_state.get("leiden_computed"):
-            progress_bar = st.progress(0)
-            elapsed_time_placeholder = st.empty()
-            status_placeholder = st.empty()
-
-            progress = 0
-            start_time = time.time()
-
-            def update_elapsed_time():
-                elapsed = time.time() - start_time
-                elapsed_time_placeholder.markdown(
-                    f"**Elapsed Time:** {elapsed:.2f} seconds"
+    # Part 1: neighbor graph + UMAP, computed once and reused for every resolution tried afterwards.
+    if not st.session_state.get("_graph_done"):
+        with st.form(key="graph_umap_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                n_neighbors = st.slider(
+                    "n_neighbors",
+                    min_value=5,
+                    max_value=50,
+                    value=15,
+                    step=1,
+                    help="Controls the local neighborhood size.",
                 )
+                pca_default_index = 1 if st.session_state.get("pca_selected", False) else 0
+                selected_dim = st.selectbox(
+                    "Dimension reduction metric to use",
+                    options=["None", "X_pca", "X_umap"],
+                    index=pca_default_index,
+                    help="Select None if you have not reduced the data using PCA.",
+                )
+            with col2:
+                min_dist = st.slider(
+                    "UMAP min_dist",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.1,
+                    step=0.01,
+                    help="Controls how tightly UMAP packs points together.",
+                )
+                selected_metric = st.selectbox(
+                    "Distance metric",
+                    options=["euclidean", "manhattan", "cosine", "correlation", "minkowski"],
+                    index=0,
+                    help="Determines how distances between data points are calculated.",
+                )
+                fast_umap = st.checkbox(
+                    "Fast UMAP (use all CPU cores)",
+                    value=False,
+                    help="Much faster on large datasets. UMAP coordinates then differ "
+                    "slightly between runs. Leiden clusters do not change.",
+                )
+            graph_button = st.form_submit_button(label="Compute graph and UMAP", type="primary")
 
-            with st.spinner("Working…"):
-                update_elapsed_time()
-                status_placeholder.markdown("**Step 1/4: Computing neighbors…**")
-                progress_bar.progress(progress)
-
-                # "X" forces the raw matrix; None would let scanpy use/compute X_pca above 50 markers.
-                use_rep = "X" if selected_dim == "None" else selected_dim
-                if use_rep != "X" and use_rep not in adata.obsm:
-                    st.error(
-                        f"{selected_dim} not found in adata.obsm. Please run the corresponding dimensionality reduction first."
+        if graph_button:
+            # "X" forces the raw matrix; None would let scanpy use/compute X_pca above 50 markers.
+            use_rep = "X" if selected_dim == "None" else selected_dim
+            if use_rep != "X" and use_rep not in adata.obsm:
+                st.error(
+                    f"{selected_dim} not found in adata.obsm. Please run the corresponding dimensionality reduction first."
+                )
+                st.stop()
+            with st.spinner(f"Computing neighbors and UMAP (n_neighbors={n_neighbors}, min_dist={min_dist})…"):
+                with NUMBA_LOCK:
+                    sc.pp.neighbors(
+                        adata,
+                        n_neighbors=n_neighbors,
+                        method="umap",
+                        use_rep=use_rep,
+                        metric=selected_metric,
+                        random_state=50,
                     )
-                    st.stop()
-                sc.pp.neighbors(
-                    adata,
-                    n_neighbors=n_neighbors,
-                    method="umap",
-                    use_rep=use_rep,
-                    metric=selected_metric,
-                    random_state=50,
-                )
-                progress += 25
-                progress_bar.progress(progress)
+                if fast_umap:
+                    run_umap_parallel(adata, min_dist)
+                else:
+                    sc.tl.umap(adata, min_dist=min_dist, random_state=50)
+            st.session_state["_params_umap"] = {
+                "n_neighbors": n_neighbors,
+                "min_dist": min_dist,
+                "fast_umap": fast_umap,
+                "metric": selected_metric,
+                "leiden_flavor": "igraph",
+                "use_rep": "raw expression (X)" if use_rep == "X" else use_rep,
+                "random_state": 50,
+            }
+            st.session_state.pop("_params_stability", None)  # a new graph makes an earlier sweep stale
+            for col in ("leiden", "leiden_stability"):  # and so are clusters from the previous graph
+                if col in adata.obs:
+                    del adata.obs[col]
+            st.session_state["_graph_done"] = True
+            set_adata(adata, source="data_processing:umap")
+            st.rerun()
+        st.stop()
 
-                update_elapsed_time()
-                status_placeholder.markdown(
-                    f"**Step 2/4: Running UMAP with n_neighbors={n_neighbors}, min_dist={min_dist}, metric={selected_metric}…**"
-                )
-                sc.tl.umap(adata, min_dist=min_dist, random_state=50)
-                progress += 25
-                progress_bar.progress(progress)
+    graph_params = st.session_state.get("_params_umap", {})
+    st.caption(
+        f"Graph and UMAP ready: n_neighbors={graph_params.get('n_neighbors')}, "
+        f"metric={graph_params.get('metric')}, on {graph_params.get('use_rep')}, "
+        f"min_dist={graph_params.get('min_dist')}."
+    )
+    if st.button("Change graph settings", key="dp_change_graph"):
+        st.session_state.pop("_graph_done", None)
+        st.session_state.pop("_params_stability", None)
+        st.rerun()
 
-                update_elapsed_time()
-                status_placeholder.markdown("**Step 3/4: Computing Leiden clustering…**")
+    # Part 2 (optional): which resolutions give reproducible clusters?
+    section_header(
+        "Resolution stability (optional)",
+        subtitle="Test a range of Leiden resolutions and see which give reproducible clusters, before choosing one.",
+    )
+    with st.form(key="stability_form"):
+        res_text = st.text_input(
+            "Resolutions to test (comma-separated)",
+            value="0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0",
+        )
+        stab_c1, stab_c2, stab_c3 = st.columns(3)
+        with stab_c1:
+            use_sub = st.checkbox(
+                "Subsampling stability",
+                value=True,
+                help="Reclusters random 80% subsets of the cells and compares them with the full result.",
+            )
+        with stab_c2:
+            use_seed = st.checkbox(
+                "Seed stability",
+                value=False,
+                help="Reruns Leiden on the same graph with different random seeds. Adds time; "
+                "usually agrees with subsampling.",
+            )
+        with stab_c3:
+            repeats = st.number_input("Repeats", min_value=3, max_value=20, value=10, step=1)
+        stability_button = st.form_submit_button(label="Run stability check")
+
+    if stability_button:
+        try:
+            resolutions = sorted({round(float(x), 2) for x in res_text.split(",") if x.strip()})
+        except ValueError:
+            resolutions = []
+        if not resolutions or len(resolutions) > 20 or not all(0 < r <= 2.5 for r in resolutions):
+            st.error("Enter 1 to 20 resolutions between 0 and 2.5, separated by commas.")
+        elif not (use_sub or use_seed):
+            st.error("Tick at least one stability measure.")
+        else:
+            seeds, subsamples = (repeats if use_seed else 0), (repeats if use_sub else 0)
+            bar = st.progress(0.0, text="Testing resolutions…")
+            table, n_used = leiden_stability(
+                adata,
+                resolutions,
+                seeds=seeds,
+                subsamples=subsamples,
+                progress=lambda done, total: bar.progress(done / total, text=f"Testing resolutions… {done}/{total}"),
+            )
+            suggested, lowest, best = suggest_resolution(table, seeds)
+            st.session_state["_params_stability"] = {
+                "table": table, "cells": n_used, "seeds": seeds, "subsamples": subsamples,
+                "suggested": suggested, "lowest": lowest, "best": best,
+            }
+            st.rerun()
+
+    stab = st.session_state.get("_params_stability")
+    if stab:
+        names = {"sub_ari": "Subsampling ARI", "seed_ari": "Seed ARI"}
+        st.line_chart(
+            stab["table"].set_index("resolution")[[c for c in names if c in stab["table"]]].rename(columns=names),
+            x_label="Leiden resolution",
+            y_label="Mean ARI (1 = identical clusters)",
+        )
+        st.dataframe(stab["table"].round(3), hide_index=True, width="stretch")
+        used = (
+            f"all {adata.n_obs:,} cells"
+            if stab["cells"] == adata.n_obs
+            else f"a random sample of {stab['cells']:,} of {adata.n_obs:,} cells; the full data usually gives more clusters at the same resolution"
+        )
+        st.caption(
+            f"Computed on {used}. The suggestion is a guide: its rule was tuned on one dataset, "
+            "so check the clusters against known biology."
+        )
+        message = (
+            f"Suggested resolution: **{stab['suggested']}** (stable range {stab['lowest']} to "
+            f"{stab['suggested']}, best mean ARI {stab['best']:.2f})."
+        )
+        if stab["best"] >= _STABLE_CLUSTER:
+            st.info(message)
+        else:
+            st.warning(
+                message + " No resolution is clearly stable for the whole dataset. Some populations may "
+                "still be reproducible: check the per-cluster scores after clustering."
+            )
+
+    # Part 3: one Leiden run at the chosen resolution.
+    section_header("Leiden clustering", subtitle="Cluster at one resolution. Changing it later reruns only this part.")
+    with st.form(key="leiden_form"):
+        resolution = st.slider(
+            "Leiden Resolution",
+            min_value=0.01,
+            max_value=2.5,
+            value=stab["suggested"] if stab else 0.5,
+            step=0.01,
+            help="Lower values yield fewer, larger clusters; higher values yield more, smaller clusters.",
+        )
+        score_clusters = st.checkbox(
+            "Score each cluster's stability",
+            value=True,
+            help="Reruns Leiden 5 more times with other seeds and reports how well each cluster is reproduced.",
+        )
+        leiden_button = st.form_submit_button(label="Run Leiden clustering", type="primary")
+
+    if leiden_button:
+        with st.spinner("Clustering…"):
+            with NUMBA_LOCK:
                 sc.tl.leiden(
                     adata,
                     resolution=resolution,
@@ -1738,64 +1926,43 @@ if not st.session_state.umap_computed:
                     n_iterations=2,
                     directed=False,
                 )
-                progress += 25
-                progress_bar.progress(progress)
-
-                update_elapsed_time()
-                status_placeholder.markdown("**Step 4/4: Finalizing…**")
-
-                # Two UMAPs (Leiden, group) snapshot to PNG. Fixed canvas + axes
-                # position gives both identical pixel size regardless of legend width.
-                group_key = "Group" if "Group" in adata.obs else "SampleID"
-
-                def _umap_panel(color, title):
-                    fig = plt.figure(figsize=(6, 5))
-                    ax = fig.add_axes([0.12, 0.12, 0.60, 0.78])
-                    sc.pl.umap(
-                        adata,
-                        color=color,
-                        ax=ax,
-                        show=False,
-                        title=title,
-                        frameon=True,
-                    )
-                    return _snapshot_fig(fig, tight=False)
-
-                st.session_state["_umap_fig_leiden"] = _umap_panel(
-                    "leiden", "Leiden clusters"
+            # Scores belong to one clustering; drop any from an earlier resolution before deciding on new ones.
+            if "leiden_stability" in adata.obs:
+                del adata.obs["leiden_stability"]
+            st.session_state.pop("_cluster_stability", None)
+            if score_clusters:
+                scores = cluster_stability(adata, resolution)
+                adata.obs["leiden_stability"] = (
+                    adata.obs["leiden"].astype(str).map(scores.set_index("cluster")["stability"]).astype(float)
                 )
-                st.session_state["_umap_fig_group"] = _umap_panel(
-                    group_key, group_key
+                st.session_state["_cluster_stability"] = scores
+                st.session_state["_umap_fig_stability"] = _umap_panel(
+                    adata, "leiden_stability", "Cluster stability", vmin=0, vmax=1
                 )
 
-                st.session_state["_params_umap"] = {
-                    "resolution": resolution,
-                    "n_neighbors": n_neighbors,
-                    "min_dist": min_dist,
-                    "metric": selected_metric,
-                    "leiden_flavor": "igraph",
-                    "use_rep": "raw expression (X)" if use_rep == "X" else use_rep,
-                    "n_clusters": int(adata.obs["leiden"].nunique()),
-                    "random_state": 50,
-                }
+            group_key = "Group" if "Group" in adata.obs else "SampleID"
+            st.session_state["_umap_fig_leiden"] = _umap_panel(adata, "leiden", "Leiden clusters")
+            st.session_state["_umap_fig_group"] = _umap_panel(adata, group_key, group_key)
 
-                # Drop the now-stale ZIP; stash resolution for output filenames.
-                st.session_state.pop("_last_zip_buffer", None)
-                st.session_state.pop("_last_zip_name", None)
-                st.session_state["_umap_resolution"] = resolution
-                st.session_state["leiden_computed"] = True
-                # Persist the clustered result (UMAP + Leiden mutate adata in place) so a refresh restores
-                # the CAFE-processed object Visualization consumes, not the pre-clustering version.
-                set_adata(adata, source="data_processing:leiden")
+            st.session_state["_params_umap"] = {
+                **graph_params,
+                "resolution": resolution,
+                "n_clusters": int(adata.obs["leiden"].nunique()),
+            }
 
-                progress += 25
-                progress_bar.progress(progress)
-                update_elapsed_time()
-                status_placeholder.markdown("**Computation completed!**")
-                # _umap_pending flips this page into its terminal state on rerun.
-                st.session_state["_umap_pending"] = [
-                    ("success", "Clustering complete."),
-                ]
-                st.rerun()
+            # Drop the now-stale ZIP; stash resolution for output filenames.
+            st.session_state.pop("_last_zip_buffer", None)
+            st.session_state.pop("_last_zip_name", None)
+            st.session_state.pop("_packaging_started", None)
+            st.session_state["_umap_resolution"] = resolution
+            st.session_state["leiden_computed"] = True
+            # Persist the clustered result (UMAP + Leiden mutate adata in place) so a refresh restores
+            # the CAFE-processed object Visualization consumes, not the pre-clustering version.
+            set_adata(adata, source="data_processing:leiden")
+            # _umap_pending flips this page into its terminal state on rerun.
+            st.session_state["_umap_pending"] = [
+                ("success", "Clustering complete."),
+            ]
+            st.rerun()
 
     st.stop()

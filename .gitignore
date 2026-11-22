@@ -62,5 +62,5 @@ env/
 .agents/
 .idea/
 
-# Tests
-CAFE/tests/
+# Test backups
+*.bak

@@ -1,5 +1,6 @@
 """Shared CAFE utilities: sparse-matrix handling, cluster-column resolution, CSV-to-AnnData conversion."""
 import os
+import threading
 import time
 from dataclasses import dataclass
 from typing import Optional
@@ -17,8 +18,178 @@ import streamlit as st
 
 # Named constants
 RANDOM_STATE = 50
+# numba's default thread pool aborts the process if two sessions start parallel work at once; hold this around it.
+# Leiden holds it too: igraph has one random generator per process, so two runs at once would change each other's labels.
+NUMBA_LOCK = threading.Lock()
 MARKER_HIGH_THRESHOLD = 1000   # expression above this -> marker annotated with "+"
 MARKER_LOW_THRESHOLD = 0       # expression below this -> marker annotated with "-"
+
+
+def run_umap_parallel(adata, min_dist):
+    """UMAP layout on all CPU cores, with sc.tl.umap's defaults; coordinates differ slightly between runs."""
+    # sc.tl.umap always seeds the layout, and umap-learn runs a seeded layout on one thread, so call it directly.
+    from umap.umap_ import find_ab_params, simplicial_set_embedding
+
+    params = adata.uns["neighbors"]["params"]
+    use_rep = params.get("use_rep", "X")
+    a, b = find_ab_params(1.0, min_dist)
+    with NUMBA_LOCK:
+        adata.obsm["X_umap"], _ = simplicial_set_embedding(
+            data=adata.X if use_rep == "X" else adata.obsm[use_rep],
+            graph=adata.obsp["connectivities"].tocoo(),
+            n_components=2,
+            initial_alpha=1.0,
+            a=a,
+            b=b,
+            gamma=1.0,
+            negative_sample_rate=5,
+            n_epochs=500 if adata.n_obs <= 10000 else 200,
+            init="spectral",
+            random_state=np.random.RandomState(RANDOM_STATE),
+            metric=params.get("metric", "euclidean"),
+            metric_kwds={},
+            densmap=False,
+            densmap_kwds={},
+            output_dens=False,
+            parallel=True,
+        )
+    adata.uns["umap"] = {"params": {"a": a, "b": b}}
+
+
+# One Leiden run is a noisy reference: on real data, which resolution looked most stable changed with its seed.
+N_REFERENCE = 5
+
+
+def _neighbor_graph(adata):
+    """adata's saved neighbor graph as an igraph graph, the form sc.tl.leiden clusters on."""
+    return sc._utils.get_igraph_from_adjacency(adata.obsp["connectivities"], directed=False)
+
+
+def _subset_graph(adata, idx):
+    """Neighbor graph on the cells at idx, built with adata's own neighbor settings."""
+    params = adata.uns["neighbors"]["params"]
+    use_rep = params.get("use_rep", "X")
+    sub = sc.AnnData((adata.X if use_rep == "X" else adata.obsm[use_rep])[idx])
+    with NUMBA_LOCK:
+        sc.pp.neighbors(
+            sub,
+            n_neighbors=params["n_neighbors"],
+            method="umap",
+            use_rep="X",
+            metric=params.get("metric", "euclidean"),
+            random_state=RANDOM_STATE,
+        )
+    return _neighbor_graph(sub)
+
+
+def _leiden_labels(graph, resolution, seed):
+    """Leiden labels on an igraph graph; the same call sc.tl.leiden(flavor="igraph", n_iterations=2) makes."""
+    from scanpy._utils.random import set_igraph_random_state
+
+    with NUMBA_LOCK, set_igraph_random_state(seed):
+        part = graph.community_leiden(
+            objective_function="modularity", weights="weight", resolution=resolution, n_iterations=2
+        )
+    return np.array(part.membership)
+
+
+def leiden_stability(adata, resolutions, seeds=0, subsamples=10, max_cells=100_000, progress=None):
+    """ARI stability of Leiden at each resolution. Returns (table, number of cells used).
+
+    seeds >= 2 adds seed_ari/seed_sd (pairwise ARI between reruns with different seeds on one graph).
+    subsamples >= 1 adds sub_ari/sub_sd (ARI between Leiden on a new graph built from a random 80% of
+    the cells and each of N_REFERENCE reference runs). Above max_cells, everything runs on a random sample.
+    """
+    from itertools import combinations
+    from sklearn.metrics import adjusted_rand_score
+
+    rng = np.random.default_rng(RANDOM_STATE)
+    cells = adata
+    if adata.n_obs > max_cells:  # sample once; the sample's graph and its subsamples come from the same cells
+        params = adata.uns["neighbors"]["params"]
+        use_rep = params.get("use_rep", "X")
+        base = np.sort(rng.choice(adata.n_obs, max_cells, replace=False))
+        cells = sc.AnnData((adata.X if use_rep == "X" else adata.obsm[use_rep])[base])
+        cells.uns["neighbors"] = {"params": {**params, "use_rep": "X"}}
+        graph = _subset_graph(cells, np.arange(max_cells))
+    else:
+        graph = _neighbor_graph(adata)
+    n = cells.n_obs
+    # Positions within the n cells in use, so reference labels and subsample labels line up.
+    sub_idx = [np.sort(rng.choice(n, int(0.8 * n), replace=False)) for _ in range(subsamples)]
+    n_runs = max(seeds, N_REFERENCE)
+    done, total = 0, subsamples + len(resolutions) * (n_runs + subsamples)
+
+    def tick():
+        nonlocal done
+        done += 1
+        if progress:
+            progress(done, total)
+
+    sub_graphs = []
+    for idx in sub_idx:
+        sub_graphs.append(_subset_graph(cells, idx))
+        tick()
+
+    rows = []
+    for res in resolutions:
+        runs = []
+        for s in range(n_runs):
+            runs.append(_leiden_labels(graph, res, RANDOM_STATE + s))
+            tick()
+        row = {"resolution": res, "clusters": len(set(runs[0]))}
+        if seeds >= 2:
+            aris = [adjusted_rand_score(a, b) for a, b in combinations(runs[:seeds], 2)]
+            row["seed_ari"], row["seed_sd"] = np.mean(aris), np.std(aris)
+        if subsamples:
+            aris = []
+            for idx, g in zip(sub_idx, sub_graphs):
+                labels = _leiden_labels(g, res, RANDOM_STATE)
+                aris += [adjusted_rand_score(ref[idx], labels) for ref in runs[:N_REFERENCE]]
+                tick()
+            row["sub_ari"], row["sub_sd"] = np.mean(aris), np.std(aris)
+        rows.append(row)
+    return pd.DataFrame(rows), n
+
+
+def suggest_resolution(table, seeds=0):
+    """One-standard-error rule on the mean of the measures that ran.
+
+    Returns (suggested, lowest, best_score): the stable range is the run of neighbouring resolutions
+    around the best one that score within one standard error of it; the suggestion is its highest.
+    """
+    # The reference run drives most of the spread in sub_ari, so its standard error counts references, not subsamples.
+    parts = [(table[f"{k}_ari"], table[f"{k}_sd"] / np.sqrt(n))
+             for k, n in (("seed", seeds), ("sub", N_REFERENCE)) if f"{k}_ari" in table]
+    table = table.assign(score=np.mean([p[0] for p in parts], axis=0), se=np.mean([p[1] for p in parts], axis=0))
+    table = table.sort_values("resolution").reset_index(drop=True)
+    best = int(table["score"].idxmax())
+    ok = (table["score"] >= table["score"][best] - table["se"][best]).to_numpy()
+    lo = hi = best
+    while hi + 1 < len(ok) and ok[hi + 1]:
+        hi += 1
+    while lo > 0 and ok[lo - 1]:
+        lo -= 1
+    return float(table["resolution"][hi]), float(table["resolution"][lo]), float(table["score"][best])
+
+
+def cluster_stability(adata, resolution, n_seeds=5):
+    """Per-cluster reproducibility of adata.obs['leiden'].
+
+    Reruns Leiden n_seeds times with other seeds on the same graph and averages each cluster's best
+    Jaccard overlap with the rerun's clusters (1 = always the same cells, near 0 = arbitrary split).
+    """
+    graph = _neighbor_graph(adata)
+    ref = adata.obs["leiden"].astype(str).to_numpy()
+    scores = []
+    for s in range(1, n_seeds + 1):
+        ct = pd.crosstab(ref, _leiden_labels(graph, resolution, RANDOM_STATE + s))
+        inter = ct.to_numpy()
+        union = inter.sum(axis=1, keepdims=True) + inter.sum(axis=0, keepdims=True) - inter
+        scores.append((inter / union).max(axis=1))
+    return pd.DataFrame(
+        {"cluster": ct.index, "cells": inter.sum(axis=1), "stability": np.mean(scores, axis=0)}
+    ).sort_values("cells", ascending=False, ignore_index=True)
 
 
 def get_cluster_col(adata):

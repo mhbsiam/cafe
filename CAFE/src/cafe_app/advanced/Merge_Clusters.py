@@ -10,6 +10,7 @@ import streamlit as st
 
 from theme import IMG_DIR, apply_theme, page_header, section_header
 from session_store import set_adata
+from utils import NUMBA_LOCK
 
 st.set_page_config(layout="centered")
 apply_theme()
@@ -242,7 +243,8 @@ if st.session_state.adata is not None:
     if 'X_umap' not in adata.obsm:
         with st.spinner("Computing UMAP (not found in file)…"):
             if 'neighbors' not in adata.uns:
-                sc.pp.neighbors(adata, use_rep='X_pca' if 'X_pca' in adata.obsm else 'X')
+                with NUMBA_LOCK:
+                    sc.pp.neighbors(adata, use_rep='X_pca' if 'X_pca' in adata.obsm else 'X')
             sc.tl.umap(adata)
         set_adata(adata, source="merge_clusters:umap")
 
@@ -362,6 +364,8 @@ if st.session_state.adata is not None:
                 leiden_copy.replace(cluster_mapping, inplace=True)
                 # Keep leiden categorical so scanpy's palette path stays valid
                 adata.obs['leiden'] = leiden_copy.astype('category')
+                # Stability scores from Data Processing describe the clusters before the merge.
+                adata.obs.drop(columns='leiden_stability', errors='ignore', inplace=True)
                 set_adata(adata, source="merge_clusters:merged")
 
                 random_number = random.randint(1000, 9999)
