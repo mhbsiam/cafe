@@ -265,9 +265,10 @@ def _safe_filename(name):
 # Canonical CAFE reference: cite this in any publication using CAFE outputs.
 _CAFE_CITATION = (
     "Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Satwik Acharyya, "
-    "Mallikarjun Patil, Daniel J Tyrrell, CAFE: An Integrated Web App for "
-    "High-Dimensional Analysis and Visualization in Spectral Flow Cytometry, "
-    "Bioinformatics, 2025, btaf176, https://doi.org/10.1093/bioinformatics/btaf176"
+    "Mallikarjun Patil, Daniel J Tyrrell, CAFE: an integrated web app for "
+    "high-dimensional analysis and visualization in spectral flow cytometry, "
+    "Bioinformatics, Volume 41, Issue 6, June 2025, btaf176, "
+    "https://doi.org/10.1093/bioinformatics/btaf176"
 )
 
 
