@@ -1770,20 +1770,23 @@ if not st.session_state.umap_computed:
                     f"{selected_dim} not found in adata.obsm. Please run the corresponding dimensionality reduction first."
                 )
                 st.stop()
-            with st.spinner(f"Computing neighbors and UMAP (n_neighbors={n_neighbors}, min_dist={min_dist})…"):
-                with NUMBA_LOCK:
-                    sc.pp.neighbors(
-                        adata,
-                        n_neighbors=n_neighbors,
-                        method="umap",
-                        use_rep=use_rep,
-                        metric=selected_metric,
-                        random_state=50,
-                    )
-                if fast_umap:
-                    run_umap_parallel(adata, min_dist)
-                else:
-                    sc.tl.umap(adata, min_dist=min_dist, random_state=50)
+            # Neither library reports progress inside a step, so the bar moves once per step.
+            bar = st.progress(0.0, text="Step 1 of 2: neighbor graph…")
+            with NUMBA_LOCK:
+                sc.pp.neighbors(
+                    adata,
+                    n_neighbors=n_neighbors,
+                    method="umap",
+                    use_rep=use_rep,
+                    metric=selected_metric,
+                    random_state=50,
+                )
+            bar.progress(0.5, text="Step 2 of 2: UMAP layout…")
+            if fast_umap:
+                run_umap_parallel(adata, min_dist)
+            else:
+                sc.tl.umap(adata, min_dist=min_dist, random_state=50)
+            bar.progress(1.0, text="Graph and UMAP done.")
             st.session_state["_params_umap"] = {
                 "n_neighbors": n_neighbors,
                 "min_dist": min_dist,
@@ -1916,53 +1919,65 @@ if not st.session_state.umap_computed:
         leiden_button = st.form_submit_button(label="Run Leiden clustering", type="primary")
 
     if leiden_button:
-        with st.spinner("Clustering…"):
-            with NUMBA_LOCK:
-                sc.tl.leiden(
-                    adata,
-                    resolution=resolution,
-                    random_state=50,
-                    flavor="igraph",
-                    n_iterations=2,
-                    directed=False,
-                )
-            # Scores belong to one clustering; drop any from an earlier resolution before deciding on new ones.
-            if "leiden_stability" in adata.obs:
-                del adata.obs["leiden_stability"]
-            st.session_state.pop("_cluster_stability", None)
-            if score_clusters:
-                scores = cluster_stability(adata, resolution)
-                adata.obs["leiden_stability"] = (
-                    adata.obs["leiden"].astype(str).map(scores.set_index("cluster")["stability"]).astype(float)
-                )
-                st.session_state["_cluster_stability"] = scores
-                st.session_state["_umap_fig_stability"] = _umap_panel(
-                    adata, "leiden_stability", "Cluster stability", vmin=0, vmax=1
-                )
+        reruns = 5 if score_clusters else 0
+        steps = 1 + reruns + 1  # Leiden, the scoring reruns, the plots
+        bar = st.progress(0.0, text="Leiden clustering…")
+        with NUMBA_LOCK:
+            sc.tl.leiden(
+                adata,
+                resolution=resolution,
+                random_state=50,
+                flavor="igraph",
+                n_iterations=2,
+                directed=False,
+            )
+        bar.progress(1 / steps, text="Scoring cluster stability…" if reruns else "Drawing UMAP plots…")
+        # Scores belong to one clustering; drop any from an earlier resolution before deciding on new ones.
+        if "leiden_stability" in adata.obs:
+            del adata.obs["leiden_stability"]
+        st.session_state.pop("_cluster_stability", None)
+        if score_clusters:
+            scores = cluster_stability(
+                adata,
+                resolution,
+                n_seeds=reruns,
+                progress=lambda done, total: bar.progress(
+                    (1 + done) / steps, text=f"Scoring cluster stability… rerun {done}/{total}"
+                ),
+            )
+            adata.obs["leiden_stability"] = (
+                adata.obs["leiden"].astype(str).map(scores.set_index("cluster")["stability"]).astype(float)
+            )
+            st.session_state["_cluster_stability"] = scores
+            bar.progress((1 + reruns) / steps, text="Drawing UMAP plots…")
+            st.session_state["_umap_fig_stability"] = _umap_panel(
+                adata, "leiden_stability", "Cluster stability", vmin=0, vmax=1
+            )
 
-            group_key = "Group" if "Group" in adata.obs else "SampleID"
-            st.session_state["_umap_fig_leiden"] = _umap_panel(adata, "leiden", "Leiden clusters")
-            st.session_state["_umap_fig_group"] = _umap_panel(adata, group_key, group_key)
+        group_key = "Group" if "Group" in adata.obs else "SampleID"
+        st.session_state["_umap_fig_leiden"] = _umap_panel(adata, "leiden", "Leiden clusters")
+        st.session_state["_umap_fig_group"] = _umap_panel(adata, group_key, group_key)
+        bar.progress(1.0, text="Clustering done.")
 
-            st.session_state["_params_umap"] = {
-                **graph_params,
-                "resolution": resolution,
-                "n_clusters": int(adata.obs["leiden"].nunique()),
-            }
+        st.session_state["_params_umap"] = {
+            **graph_params,
+            "resolution": resolution,
+            "n_clusters": int(adata.obs["leiden"].nunique()),
+        }
 
-            # Drop the now-stale ZIP; stash resolution for output filenames.
-            st.session_state.pop("_last_zip_buffer", None)
-            st.session_state.pop("_last_zip_name", None)
-            st.session_state.pop("_packaging_started", None)
-            st.session_state["_umap_resolution"] = resolution
-            st.session_state["leiden_computed"] = True
-            # Persist the clustered result (UMAP + Leiden mutate adata in place) so a refresh restores
-            # the CAFE-processed object Visualization consumes, not the pre-clustering version.
-            set_adata(adata, source="data_processing:leiden")
-            # _umap_pending flips this page into its terminal state on rerun.
-            st.session_state["_umap_pending"] = [
-                ("success", "Clustering complete."),
-            ]
-            st.rerun()
+        # Drop the now-stale ZIP; stash resolution for output filenames.
+        st.session_state.pop("_last_zip_buffer", None)
+        st.session_state.pop("_last_zip_name", None)
+        st.session_state.pop("_packaging_started", None)
+        st.session_state["_umap_resolution"] = resolution
+        st.session_state["leiden_computed"] = True
+        # Persist the clustered result (UMAP + Leiden mutate adata in place) so a refresh restores
+        # the CAFE-processed object Visualization consumes, not the pre-clustering version.
+        set_adata(adata, source="data_processing:leiden")
+        # _umap_pending flips this page into its terminal state on rerun.
+        st.session_state["_umap_pending"] = [
+            ("success", "Clustering complete."),
+        ]
+        st.rerun()
 
     st.stop()

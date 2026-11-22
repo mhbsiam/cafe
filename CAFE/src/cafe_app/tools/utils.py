@@ -173,7 +173,7 @@ def suggest_resolution(table, seeds=0):
     return float(table["resolution"][hi]), float(table["resolution"][lo]), float(table["score"][best])
 
 
-def cluster_stability(adata, resolution, n_seeds=5):
+def cluster_stability(adata, resolution, n_seeds=5, progress=None):
     """Per-cluster reproducibility of adata.obs['leiden'].
 
     Reruns Leiden n_seeds times with other seeds on the same graph and averages each cluster's best
@@ -187,6 +187,8 @@ def cluster_stability(adata, resolution, n_seeds=5):
         inter = ct.to_numpy()
         union = inter.sum(axis=1, keepdims=True) + inter.sum(axis=0, keepdims=True) - inter
         scores.append((inter / union).max(axis=1))
+        if progress:
+            progress(s, n_seeds)
     return pd.DataFrame(
         {"cluster": ct.index, "cells": inter.sum(axis=1), "stability": np.mean(scores, axis=0)}
     ).sort_values("cells", ascending=False, ignore_index=True)
