@@ -102,11 +102,13 @@ dependencies = [
     { name = "pandas" },
     { name = "plotly" },
     { name = "pyarrow" },
+    { name = "pynndescent" },
     { name = "scanpy" },
     { name = "scipy" },
     { name = "seaborn" },
     { name = "statsmodels" },
     { name = "streamlit" },
+    { name = "umap-learn" },
     { name = "watchdog" },
 ]
 
@@ -129,12 +131,14 @@ requires-dist = [
     { name = "pandas", specifier = "==3.0.3" },
     { name = "plotly", specifier = "==6.9.0" },
     { name = "pyarrow", specifier = "==25.0.1" },
+    { name = "pynndescent", specifier = "==0.6.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "scanpy", specifier = "==1.12.2" },
     { name = "scipy", specifier = "==1.18.0" },
     { name = "seaborn", specifier = "==0.13.2" },
     { name = "statsmodels", specifier = "==0.14.6" },
     { name = "streamlit", specifier = "==1.66.1" },
+    { name = "umap-learn", specifier = "==0.5.12" },
     { name = "watchdog", specifier = "==6.0.0" },
 ]
 provides-extras = ["dev"]
