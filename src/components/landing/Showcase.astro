@@ -1,0 +1,24 @@
+---
+import { Image } from 'astro:assets';
+import screenshot from '../../assets/CAFE_interface.jpg';
+---
+
+<section class="landing-section" aria-labelledby="landing-showcase">
+  <header class="landing-head">
+    <p class="landing-kicker">Interface</p>
+    <h2 id="landing-showcase" class="landing-h2">One app for the whole analysis</h2>
+    <p>CAFE opens in your browser but runs on your machine. Every step, plot and setting sits in one sidebar.</p>
+  </header>
+  <figure class="landing-window">
+    <div class="landing-window__bar" aria-hidden="true">
+      <span class="landing-window__dots"><span></span><span></span><span></span></span>
+      <span class="landing-window__url">localhost · CAFE</span>
+    </div>
+    <Image
+      src={screenshot}
+      alt="Four views of the CAFE app: the welcome page, UMAP plot settings, data-processing parameters for Leiden clustering and UMAP, and a dendrogram above a UMAP plot coloured by Leiden cluster."
+      widths={[640, 960, 1280, 1920]}
+      sizes="(min-width: 72rem) 1120px, calc(100vw - 2rem)"
+    />
+  </figure>
+</section>

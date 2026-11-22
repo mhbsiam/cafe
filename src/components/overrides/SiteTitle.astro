@@ -1,0 +1,56 @@
+---
+// CAFE brand: the "CAFE" letters from transparent_logo.png, used as a CSS mask
+// so the mark takes the theme's accent colour (the PNG's navy ink is unreadable on dark).
+import logo from "../../assets/transparent_logo.png";
+
+const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute;
+---
+
+<a href={siteTitleHref} class="site-title">
+  <span class="sr-only" translate="no">{siteTitle}</span>
+  <span class="mark" aria-hidden="true" style={`--cafe-logo: url("${logo.src}")`}></span>
+  <span class="label" aria-hidden="true">Docs</span>
+</a>
+
+<style>
+  .site-title {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  /* Crop to the CAFE letters: alpha bbox x 141–452, y 31–157 of the 975×256 PNG,
+     padded 3px so anti-aliased edges and the antibody glyphs are not clipped. */
+  .mark {
+    --h: 1.75rem;
+    flex-shrink: 0;
+    width: calc(var(--h) * 317 / 132);
+    height: var(--h);
+    background-color: var(--sl-color-text-accent);
+    -webkit-mask: var(--cafe-logo) no-repeat;
+    mask: var(--cafe-logo) no-repeat;
+    -webkit-mask-size: calc(var(--h) * 975 / 132) auto;
+    mask-size: calc(var(--h) * 975 / 132) auto;
+    -webkit-mask-position: calc(var(--h) * -138 / 132) calc(var(--h) * -28 / 132);
+    mask-position: calc(var(--h) * -138 / 132) calc(var(--h) * -28 / 132);
+  }
+  .label {
+    padding-inline-start: 0.625rem;
+    border-inline-start: 1px solid var(--cafe-border-strong);
+    font-family: var(--cafe-font-display);
+    font-size: var(--sl-text-base);
+    font-weight: 500;
+    line-height: 1.25;
+    color: var(--sl-color-gray-2);
+  }
+  .site-title:hover .label {
+    color: var(--sl-color-white);
+  }
+  @media (forced-colors: active) {
+    .mark {
+      forced-color-adjust: none;
+      background-color: CanvasText;
+    }
+  }
+</style>

@@ -1,152 +1,560 @@
-@import url("https://fonts.bunny.net/css?family=source-sans-3:400,600,700&display=swap");
+@import url("https://fonts.bunny.net/css?family=ibm-plex-sans:400,400i,500,600|instrument-sans:500,600,700|jetbrains-mono:400,500&display=swap");
 
 /*
- * CAFE Docs — Starlight theme.
+ * CAFE Docs — design tokens + docs chrome (Designer A).
  *
  * Starlight uses SEMANTIC color tokens, not literal ones:
- *   --sl-color-white  = the foreground / high-contrast color
- *                       (dark ink in light mode, near-white in dark mode)
- *   --sl-color-black  = the page background color
- *                       (white in light mode, near-black in dark mode)
- *   --sl-color-gray-1 … gray-7 = a ramp from foreground (1) toward background (7)
+ *   --sl-color-white  = foreground / high-contrast ink (dark in light mode)
+ *   --sl-color-black  = page background (white in light mode)
+ *   --sl-color-gray-1 … gray-7 = ramp from foreground (1) toward background (7)
+ * Starlight derives text, hairlines, nav bg, etc. from these primitives.
  *
- * We only override the primitives (white / black / gray / accent) and let
- * Starlight derive the rest (text, bg, hairlines, …). The brand hue is a
- * teal-slate (~198deg) so the neutral ramp stays on-brand instead of flat gray.
+ * All Starlight CSS lives in `@layer starlight.*`; this file is unlayered, so
+ * it wins without `!important`. Every `.sl-markdown-content` rule keeps the
+ * `:not(:where(.not-content *))` guard so it never reaches code blocks,
+ * components or the landing page (which wraps its sections in `.not-content`).
+ *
+ * Contrast (WCAG 2.x) for every text pair is listed in the PR report; all
+ * body text pairs are ≥ 4.5:1 in both themes.
  */
 
-/* ---------------------------------------------------------------- Light -- */
+/* ======================================================== Tokens: light == */
 :root {
-  --sl-font: "Source Sans 3", "Source Sans Pro", sans-serif;
+  /* Type */
+  --sl-font: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cafe-font-display: "Instrument Sans", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 
-  /* Foreground → background ramp */
-  --sl-color-white: #16242b; /* headings / high-contrast text */
-  --sl-color-gray-1: #223338;
-  --sl-color-gray-2: #33454b; /* body text + hero tagline */
-  --sl-color-gray-3: #57696f; /* muted / secondary text */
-  --sl-color-gray-4: #8598a0; /* decorative icons */
-  --sl-color-gray-5: #b6c4c9; /* strong borders */
-  --sl-color-gray-6: #dde5e8; /* hairlines, nav/sidebar bg */
-  --sl-color-gray-7: #f0f4f6; /* subtle raised surfaces (cards) */
-  --sl-color-black: #ffffff; /* page background */
+  /* Ink → paper ramp, teal-tinted (~195deg) */
+  --sl-color-white: #0b1a20; /* headings, ink */
+  --sl-color-gray-1: #16272e;
+  --sl-color-gray-2: #2b3c43; /* body text */
+  --sl-color-gray-3: #53656c; /* muted text */
+  --sl-color-gray-4: #7d9096; /* icons, decorative only */
+  --sl-color-gray-5: #c5d1d5; /* strong borders */
+  --sl-color-gray-6: #e2e9ec; /* hairlines, tab bars */
+  --sl-color-gray-7: #f6f8f9; /* code background (keep ≥ #f6f7f9 for EC syntax contrast) */
+  --sl-color-black: #ffffff; /* page */
 
-  /* Brand accent — CAFE teal */
-  --sl-color-accent-low: #dbeaf1;
-  --sl-color-accent: #0f5070;
-  --sl-color-accent-high: #0a3d57;
+  /* CAFE teal */
+  --sl-color-accent-low: #ddedf3;
+  --sl-color-accent: #0c5a7a;
+  --sl-color-accent-high: #083f57;
 
-  --cafe-on-accent: #ffffff; /* text on a filled accent button */
+  /* CAFE contract */
+  --cafe-on-accent: #ffffff;
+  --cafe-surface: #fbfcfd;
+  --cafe-surface-2: #f3f6f7;
+  --cafe-border: #d7e0e4;
+  --cafe-border-strong: #c5d1d5;
+  --cafe-glow: rgb(12 90 122 / 0.18);
+  --cafe-spectrum-1: #0e9bbd; /* cyan */
+  --cafe-spectrum-2: #3f6fdc; /* blue */
+  --cafe-spectrum-3: #7b4fd4; /* violet */
+
+  --cafe-radius-sm: 8px;
+  --cafe-radius: 12px;
+  --cafe-radius-lg: 20px;
+  --cafe-shadow-sm: 0 1px 2px rgb(11 34 44 / 0.06), 0 1px 1px rgb(11 34 44 / 0.04);
+  --cafe-shadow: 0 6px 16px -6px rgb(11 34 44 / 0.12), 0 2px 4px -2px rgb(11 34 44 / 0.06);
+  --cafe-shadow-lg: 0 28px 56px -24px rgb(11 34 44 / 0.22), 0 8px 16px -8px rgb(11 34 44 / 0.08);
+
+  --cafe-space-1: 4px;
+  --cafe-space-2: 8px;
+  --cafe-space-3: 12px;
+  --cafe-space-4: 16px;
+  --cafe-space-5: 24px;
+  --cafe-space-6: 32px;
+  --cafe-space-7: 48px;
+  --cafe-space-8: 64px;
+  --cafe-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --cafe-maxw: 1120px;
+
+  /* Re-point Starlight's derived tokens at the contract */
+  --sl-color-bg-nav: var(--sl-color-black);
+  --sl-color-bg-sidebar: var(--sl-color-black);
+  --sl-color-bg-inline-code: var(--cafe-surface-2);
+  --sl-color-hairline: var(--cafe-border);
+  --sl-color-hairline-light: var(--cafe-border);
+  --sl-color-hairline-shade: var(--cafe-border);
+
+  /* Calmer heading scale (mobile); desktop step below mirrors Starlight's 50em query */
+  --sl-text-h1: 2rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.25rem;
+  --sl-text-h4: 1.125rem;
+  --sl-line-height: 1.7;
+  --sl-line-height-headings: 1.2;
 }
 
-/* ----------------------------------------------------------------- Dark -- */
-[data-theme="dark"] {
-  --sl-color-white: #f2f7f8; /* headings / high-contrast text */
-  --sl-color-gray-1: #e2eaed;
-  --sl-color-gray-2: #c2d0d5; /* body text + hero tagline */
-  --sl-color-gray-3: #9db0b6; /* muted / secondary text */
-  --sl-color-gray-4: #6c8188; /* decorative icons */
-  --sl-color-gray-5: #45575d; /* strong borders */
-  --sl-color-gray-6: #2b3a40; /* hairlines, nav/sidebar bg */
-  --sl-color-gray-7: #222f34; /* subtle raised surfaces (cards) */
-  --sl-color-black: #131e22; /* page background */
-
-  --sl-color-accent-low: #123a4d;
-  --sl-color-accent: #5aa7c4;
-  --sl-color-accent-high: #9fd0e0;
-
-  --cafe-on-accent: #071f29; /* dark ink on the brighter dark-mode teal */
+@media (min-width: 50em) {
+  :root {
+    --sl-nav-height: 3.75rem;
+    --sl-text-h1: 2.5rem;
+    --sl-text-h2: 1.75rem;
+    --sl-text-h3: 1.375rem;
+    --sl-text-h4: 1.125rem;
+  }
 }
 
-/* ============================================================ Hero ==== */
 
-/* Soft brand glow behind the splash hero instead of a flat dark slab. */
-[data-has-hero] .hero {
-  position: relative;
-  padding-block: clamp(2rem, 6vw, 4rem);
+/* ============================================================== Base ==== */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-[data-has-hero] .hero::before {
-  content: "";
-  position: absolute;
-  inset: -15% -25% auto -25%;
-  height: 150%;
-  background:
-    radial-gradient(
-      55% 60% at 72% 22%,
-      color-mix(in oklab, var(--sl-color-accent) 26%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      45% 55% at 12% 85%,
-      color-mix(in oklab, var(--sl-color-accent) 12%, transparent),
-      transparent 70%
-    );
-  z-index: -1;
-  pointer-events: none;
+::selection {
+  background-color: color-mix(in srgb, var(--sl-color-accent) 24%, transparent);
 }
 
-/* Frame the logo as an intentional brand plate rather than a raw white box. */
-.hero > img,
-.hero > .hero-html > img {
-  max-width: min(100%, 30rem);
-  height: auto;
-  padding: 1.1rem 1.4rem;
-  background: #ffffff;
-  border-radius: 1rem;
-  border: 1px solid var(--sl-color-hairline);
-  box-shadow:
-    0 18px 44px -22px rgba(6, 24, 30, 0.6),
-    0 2px 8px -4px rgba(6, 24, 30, 0.35);
+/* Focus ring: colour/width only; offsets stay Starlight's (inside-offset on tabs etc.) */
+:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
 }
 
-/* Hero title: tighten tracking, keep it crisp. */
-.hero h1 {
-  letter-spacing: -0.02em;
+/* ============================================================ Header ==== */
+/* Pattern: quiet bar with a hairline bottom (Browserbase); translucent blur is our own addition. */
+header.header {
+  background-color: color-mix(in srgb, var(--sl-color-black) 86%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--cafe-border);
+}
+/* Splash/landing (no sidebar): align header contents with the landing column. */
+:root:not([data-has-sidebar]) header.header > .header {
+  max-width: var(--cafe-maxw);
+  margin-inline: auto;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  header.header {
+    background-color: var(--sl-color-black);
+  }
 }
 
-/* Primary CTA — solid brand fill with reliable text contrast in both themes. */
-.hero .actions a.action.primary {
-  background: var(--sl-color-accent);
-  border-color: transparent;
-  color: var(--cafe-on-accent);
-  box-shadow: 0 10px 24px -12px color-mix(in oklab, var(--sl-color-accent) 70%, transparent);
-  transition:
-    background-color 0.15s ease,
-    transform 0.15s ease,
-    box-shadow 0.15s ease;
+/* GitHub (social) as a quiet round icon button, right side */
+header.header .social-icons a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--cafe-border);
+  border-radius: 999px;
+  color: var(--sl-color-gray-2);
+}
+header.header .social-icons a:hover {
+  opacity: 1;
+  color: var(--sl-color-white);
+  background-color: var(--cafe-surface-2);
+  border-color: var(--cafe-border-strong);
+}
+/* No theme switch follows the GitHub icon, so drop Starlight's divider. */
+header.header .social-icons::after {
+  content: none;
 }
 
-.hero .actions a.action.primary:hover {
-  background: var(--sl-color-accent-high);
-  color: var(--cafe-on-accent);
-  transform: translateY(-1px);
+/* Search: soft tinted pill (echoes Orchid's pill-shaped nav items) with a keyboard hint */
+@media (min-width: 50rem) {
+  header.header button[data-open-modal] {
+    height: 2.25rem;
+    max-width: 20rem;
+    border: 1px solid var(--cafe-border);
+    border-radius: 999px;
+    padding-inline: 0.875rem 0.375rem;
+    background-color: var(--cafe-surface-2);
+    color: var(--sl-color-gray-3);
+  }
+  header.header button[data-open-modal]:hover {
+    border-color: var(--cafe-border-strong);
+    color: var(--sl-color-white);
+  }
+  header.header button[data-open-modal] > kbd {
+    border: 1px solid var(--cafe-border);
+    border-radius: 999px;
+    padding-block: 0.125rem;
+    background-color: var(--sl-color-black);
+    color: var(--sl-color-gray-3);
+  }
 }
 
-/* Minimal ("Read the Paper") action — quiet but clearly interactive. */
-.hero .actions a.action.minimal {
+/* Search dialog */
+site-search dialog {
+  border-color: var(--cafe-border);
+  background-color: var(--cafe-surface);
+}
+@media (min-width: 50rem) {
+  site-search dialog {
+    border-radius: var(--cafe-radius-lg);
+    box-shadow: var(--cafe-shadow-lg);
+  }
+}
+
+/* =========================================================== Sidebar ==== */
+/* Collapsible group labels only (top-level single links keep link styling):
+   small, tracked, muted (column labels in Cloudflare's menu) */
+.sidebar-content summary .large {
+  font-family: var(--cafe-font-display);
+  font-size: var(--sl-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-3);
+}
+.sidebar-content summary .caret {
+  color: var(--sl-color-gray-4);
+}
+
+/* Items: ≥ 24px targets (WCAG 2.5.8, per component.gallery tree-view guidance) */
+.sidebar-content ul a {
+  border-radius: var(--cafe-radius-sm);
+  padding: 0.375rem 0.625rem;
+  color: var(--sl-color-gray-2);
+}
+.sidebar-content ul a:focus-visible,
+.pagination-links a:focus-visible {
+  outline-offset: 2px;
+}
+.sidebar-content ul a:hover {
+  color: var(--sl-color-white);
+  background-color: var(--cafe-surface-2);
+}
+/* Current page: soft tinted pill + accent text (Browserbase's active item), not a solid slab */
+.sidebar-content ul a[aria-current="page"],
+.sidebar-content ul a[aria-current="page"]:hover,
+.sidebar-content ul a[aria-current="page"]:focus {
+  font-weight: 600;
+  color: var(--sl-color-text-accent);
+  background-color: color-mix(in srgb, var(--sl-color-accent) 12%, var(--sl-color-black));
+}
+
+/* Badges ("Recommended", "Alternative"): quiet tinted pills in every variant.
+   Text on tint ≥ 6:1 in both themes; `note` speaks in the brand accent like asides. */
+:root {
+  --sl-badge-default-bg: color-mix(in srgb, var(--sl-color-accent) 14%, var(--sl-color-black));
+  --sl-badge-default-border: color-mix(in srgb, var(--sl-color-accent) 35%, var(--sl-color-black));
+  --sl-badge-default-text: var(--sl-color-text-accent);
+  --sl-badge-note-bg: var(--sl-badge-default-bg);
+  --sl-badge-note-border: var(--sl-badge-default-border);
+  --sl-badge-note-text: var(--sl-badge-default-text);
+  --sl-badge-success-bg: color-mix(in srgb, var(--sl-color-green) 14%, var(--sl-color-black));
+  --sl-badge-success-border: color-mix(in srgb, var(--sl-color-green) 35%, var(--sl-color-black));
+  --sl-badge-success-text: var(--sl-color-green-high);
+  --sl-badge-caution-bg: color-mix(in srgb, var(--sl-color-orange) 14%, var(--sl-color-black));
+  --sl-badge-caution-border: color-mix(in srgb, var(--sl-color-orange) 35%, var(--sl-color-black));
+  --sl-badge-caution-text: var(--sl-color-orange-high);
+  --sl-badge-danger-bg: color-mix(in srgb, var(--sl-color-red) 14%, var(--sl-color-black));
+  --sl-badge-danger-border: color-mix(in srgb, var(--sl-color-red) 35%, var(--sl-color-black));
+  --sl-badge-danger-text: var(--sl-color-red-high);
+  --sl-badge-tip-bg: color-mix(in srgb, var(--sl-color-purple) 14%, var(--sl-color-black));
+  --sl-badge-tip-border: color-mix(in srgb, var(--sl-color-purple) 35%, var(--sl-color-black));
+  --sl-badge-tip-text: var(--sl-color-purple-high);
+}
+.sl-badge {
+  border-radius: 999px;
+  font-family: inherit;
+  font-weight: 500;
+}
+.sidebar-content .sl-badge {
+  padding: 0.125rem 0.5rem;
+}
+
+/* Mobile menu footer (theme + GitHub inside the drawer) */
+.mobile-preferences {
+  border-top-color: var(--cafe-border);
+}
+
+/* =============================================================== TOC ==== */
+#starlight__on-this-page {
+  font-family: var(--cafe-font-display);
+  font-size: var(--sl-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sl-color-gray-3);
+}
+.right-sidebar-panel starlight-toc nav > ul {
+  border-inline-start: 1px solid var(--cafe-border);
+}
+.right-sidebar-panel starlight-toc a {
+  margin-inline-start: -1px;
+  border-radius: 0;
+  border-inline-start: 2px solid transparent;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+.right-sidebar-panel starlight-toc a:hover {
   color: var(--sl-color-white);
 }
-.hero .actions a.action.minimal:hover {
+.right-sidebar-panel starlight-toc a[aria-current="true"] {
+  color: var(--sl-color-text-accent);
+  font-weight: 500;
+}
+
+/* Mobile "On this page" bar */
+mobile-starlight-toc nav {
+  border-top-color: var(--cafe-border);
+}
+mobile-starlight-toc .toggle {
+  border-color: var(--cafe-border);
+  border-radius: 999px;
+}
+
+/* ======================================================== Typography ==== */
+h1#_top,
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6):not(:where(.not-content *)) {
+  font-family: var(--cafe-font-display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+h1#_top {
+  letter-spacing: -0.025em;
+}
+.sl-markdown-content :not(h1, h2, h3, h4, h5, h6, .sl-heading-wrapper) + .sl-heading-wrapper.level-h2 {
+  margin-top: 2em;
+}
+
+.sl-markdown-content :is(p, li):not(:where(.not-content *)) {
+  text-wrap: pretty;
+}
+.sl-markdown-content strong:not(:where(.not-content *)) {
+  color: var(--sl-color-white);
+  font-weight: 600;
+}
+
+.sl-markdown-content a:not(.sl-anchor-link):not(:where(.not-content *)) {
+  color: var(--sl-color-text-accent);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+.sl-markdown-content a:hover:not(.sl-anchor-link):not(:where(.not-content *)) {
+  color: var(--sl-color-text-accent);
+  text-decoration-color: currentColor;
+}
+/* Links inside asides keep the aside's own accent */
+.sl-markdown-content .starlight-aside__content a,
+.sl-markdown-content .starlight-aside__content a:hover {
+  color: var(--sl-color-asides-text-accent);
+}
+
+.sl-markdown-content code:not(:where(.not-content *)) {
+  border: 1px solid var(--cafe-border);
+  border-radius: 6px;
+  font-size: 0.875em;
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start: 2px solid var(--cafe-border-strong);
+  color: var(--sl-color-gray-3);
+}
+
+.sl-markdown-content img:not(:where(.not-content *)) {
+  border-radius: var(--cafe-radius);
+}
+
+/* ============================================================ Tables ==== */
+.sl-markdown-content table:not(:where(.not-content *)) {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--cafe-border);
+  border-radius: var(--cafe-radius);
+  font-size: var(--sl-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.sl-markdown-content :is(th, td):not(:where(.not-content *)),
+.sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)),
+.sl-markdown-content :is(th:last-child, td:last-child):not(:where(.not-content *)) {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--cafe-border);
+}
+.sl-markdown-content tr:last-child td:not(:where(.not-content *)) {
+  border-bottom: 0;
+}
+.sl-markdown-content th:not(:where(.not-content *)) {
+  background-color: var(--cafe-surface-2);
+  color: var(--sl-color-gray-1);
+  white-space: nowrap;
+}
+.sl-markdown-content tbody tr:hover td:not(:where(.not-content *)) {
+  background-color: color-mix(in srgb, var(--cafe-surface-2) 60%, transparent);
+}
+
+/* ===================================================== Details/accordion = */
+.sl-markdown-content details:not(:where(.not-content *)) {
+  --sl-details-border-color: var(--cafe-border);
+  --sl-details-border-color--hover: var(--cafe-border-strong);
+  border: 1px solid var(--sl-details-border-color);
+  border-radius: var(--cafe-radius);
+  padding: 0.75rem 1rem;
+  background-color: var(--cafe-surface);
+}
+
+/* ======================================================= Code blocks ==== */
+/* EC emits light-theme vars on the element itself, so override there. */
+.expressive-code {
+  --ec-brdRad: var(--cafe-radius);
+  --ec-brdCol: var(--cafe-border);
+  --ec-frm-frameBoxShdCssVal: var(--cafe-shadow-sm);
+}
+
+/* ============================================================ Asides ==== */
+.starlight-aside {
+  border: 1px solid color-mix(in srgb, var(--sl-color-asides-border) 25%, var(--cafe-border));
+  border-radius: var(--cafe-radius);
+  padding: 1rem 1.25rem;
+  background-color: color-mix(in srgb, var(--sl-color-asides-border) 8%, var(--sl-color-black));
+}
+/* Notes speak in the brand accent instead of Starlight blue */
+.starlight-aside--note {
+  --sl-color-asides-border: var(--sl-color-accent);
+  --sl-color-asides-text-accent: var(--sl-color-text-accent);
+}
+.starlight-aside__title {
+  font-family: var(--cafe-font-display);
+  font-size: var(--sl-text-base);
+  letter-spacing: -0.005em;
+}
+
+/* ======================================================= Cards/Links ==== */
+article.card {
+  --sl-card-border: color-mix(in srgb, var(--sl-color-accent) 40%, transparent);
+  --sl-card-bg: var(--sl-color-accent-low);
+  border: 1px solid var(--cafe-border);
+  border-radius: var(--cafe-radius);
+  background-color: var(--cafe-surface);
+  box-shadow: var(--cafe-shadow-sm);
+}
+article.card .title {
+  font-family: var(--cafe-font-display);
+  letter-spacing: -0.01em;
+}
+article.card .icon {
+  color: var(--sl-color-text-accent);
+  border-radius: var(--cafe-radius-sm);
+}
+
+.sl-link-card {
+  border-color: var(--cafe-border);
+  border-radius: var(--cafe-radius);
+  background-color: var(--cafe-surface);
+  box-shadow: var(--cafe-shadow-sm);
+}
+.sl-link-card:hover {
+  background-color: var(--cafe-surface);
+  border-color: color-mix(in srgb, var(--sl-color-accent) 45%, var(--cafe-border));
+  box-shadow: var(--cafe-shadow);
+}
+
+/* Starlight LinkButton (docs pages); the landing page uses its own .landing-btn */
+.sl-link-button {
+  border-radius: 999px;
+}
+.sl-link-button.primary {
+  background-color: var(--sl-color-accent);
+  border-color: transparent;
+  color: var(--cafe-on-accent);
+}
+.sl-link-button.primary:hover {
+  background-color: var(--sl-color-accent-high);
+  color: var(--cafe-on-accent);
+}
+.sl-link-button:focus-visible {
+  outline-offset: 2px;
+}
+
+/* ============================================================== Tabs ==== */
+starlight-tabs [role="tablist"] {
+  border-bottom: 1px solid var(--cafe-border);
+}
+starlight-tabs .tab {
+  margin-bottom: -1px;
+}
+starlight-tabs .tab > [role="tab"] {
+  padding: 0.5rem 1rem;
+  border-bottom: 2px solid transparent;
+  color: var(--sl-color-gray-3);
+  font-weight: 500;
+}
+starlight-tabs .tab > [role="tab"]:hover {
+  color: var(--sl-color-white);
+}
+starlight-tabs .tab [role="tab"][aria-selected="true"] {
+  color: var(--sl-color-white);
+  border-bottom-color: var(--sl-color-accent);
+  font-weight: 600;
+}
+
+/* ============================================================= Steps ==== */
+.sl-steps > li::before {
+  font-family: var(--cafe-font-display);
+  color: var(--sl-color-text-accent);
+  background-color: var(--sl-color-accent-low);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sl-color-accent) 35%, transparent);
+}
+.sl-steps > li::after {
+  background-color: var(--cafe-border);
+}
+
+/* ======================================================== Pagination ==== */
+.pagination-links a {
+  border: 1px solid var(--cafe-border);
+  border-radius: var(--cafe-radius);
+  padding: 1rem 1.25rem;
+  background-color: var(--cafe-surface);
+  box-shadow: none;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+.pagination-links a:hover {
+  border-color: color-mix(in srgb, var(--sl-color-accent) 45%, var(--cafe-border));
+  box-shadow: var(--cafe-shadow);
+}
+.pagination-links a svg {
+  color: var(--sl-color-gray-4);
+}
+.pagination-links a:hover svg {
   color: var(--sl-color-text-accent);
 }
-
-/* ========================================================= Cards ===== */
-
-/*
- * Starlight rotates card icon accents through purple/orange/green/red/blue.
- * For a single-accent scientific brand that reads as random noise, so we
- * pin every card to the CAFE teal and lift cards off the page background.
- */
-.card {
-  --sl-card-border: var(--sl-color-accent) !important;
-  --sl-card-bg: var(--sl-color-accent-low) !important;
-  background-color: var(--sl-color-gray-7);
-  border-color: var(--sl-color-hairline);
+.pagination-links .link-title {
+  font-family: var(--cafe-font-display);
+  font-size: var(--sl-text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--sl-color-white);
 }
 
-[data-theme="dark"] .card .icon {
-  color: var(--sl-color-accent-high);
+/* Footer: separate prev/next from content on docs pages (not the splash page) */
+:root[data-has-sidebar] .main-pane footer {
+  margin-top: var(--cafe-space-7);
+  border-top: 1px solid var(--cafe-border);
+  padding-top: var(--cafe-space-2);
 }
-:root:not([data-theme="dark"]) .card .icon {
-  color: var(--sl-color-accent);
+:root[data-has-sidebar] .main-pane footer .meta {
+  margin-top: 0;
+}
+
+/* ============================================================ Motion ==== */
+@media (prefers-reduced-motion: no-preference) {
+  .sidebar-content ul a,
+  .right-sidebar-panel starlight-toc a,
+  header.header .social-icons a,
+  header.header button[data-open-modal],
+  starlight-tabs [role="tab"],
+  .pagination-links a,
+  .pagination-links a svg,
+  .sl-link-card,
+  .sl-link-button {
+    transition:
+      color 0.15s var(--cafe-ease),
+      background-color 0.15s var(--cafe-ease),
+      border-color 0.15s var(--cafe-ease),
+      box-shadow 0.2s var(--cafe-ease);
+  }
 }

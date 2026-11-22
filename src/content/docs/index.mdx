@@ -2,36 +2,20 @@
 title: CAFE
 description: Open-source, no-code spectral flow cytometry analysis for immunology researchers.
 template: splash
-hero:
-  tagline: Analyze spectral flow cytometry data and produce publication-ready figures without writing code.
-  image:
-    # Raw HTML: Starlight's `file` hero is resized to 400x400, and Astro 7 crops that wide logo.
-    html: '<img src="/cafe/hero-logo.png" alt="CAFE logo" width="400" height="105" />'
-  actions:
-    - text: Get Started
-      link: /cafe/getting-started/introduction
-      icon: right-arrow
-    - text: Read the Paper
-      link: https://doi.org/10.1093/bioinformatics/btaf176
-      icon: external
-      variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import Hero from '../../components/landing/Hero.astro';
+import TrustStrip from '../../components/landing/TrustStrip.astro';
+import Pipeline from '../../components/landing/Pipeline.astro';
+import Showcase from '../../components/landing/Showcase.astro';
+import Features from '../../components/landing/Features.astro';
+import CiteCta from '../../components/landing/CiteCta.astro';
 
-## What CAFE does
-
-<CardGrid stagger>
-  <Card title="Upload CSVs" icon="upload">
-    Import scaled FlowJo exports with the standard SampleID_Group.csv naming convention.
-  </Card>
-  <Card title="Clean & Correct" icon="approve-check">
-    Run MAD-based QC, optional PCA, and ComBat batch correction in a guided pipeline.
-  </Card>
-  <Card title="Cluster & Explore" icon="open-book">
-    Compute UMAP + Leiden clusters, then pan, zoom, and select cells interactively.
-  </Card>
-  <Card title="Export Figures" icon="download">
-    Download 300 DPI PNG/PDF/SVG plots plus a ZIP of tables and the processed AnnData object.
-  </Card>
-</CardGrid>
+<div class="landing not-content">
+  <Hero />
+  <TrustStrip />
+  <Pipeline />
+  <Showcase />
+  <Features />
+  <CiteCta />
+</div>

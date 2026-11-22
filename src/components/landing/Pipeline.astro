@@ -1,0 +1,35 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const steps = [
+  ['Upload', 'Scaled CSV exports, one file per sample'],
+  ['Quality control', 'MAD-based removal of outlier cells'],
+  ['Batch correct', 'Optional PCA and ComBat correction'],
+  ['Cluster', 'UMAP embedding and Leiden clustering'],
+  ['Explore', 'Merge, annotate and re-cluster populations'],
+  ['Export', '300 DPI figures, tables and AnnData'],
+];
+---
+
+<section class="landing-section" aria-labelledby="landing-pipeline">
+  <header class="landing-head">
+    <p class="landing-kicker">Workflow</p>
+    <h2 id="landing-pipeline" class="landing-h2">From raw exports to figures in six steps</h2>
+    <p>Each step is a guided screen. You set the parameters, CAFE runs the analysis.</p>
+  </header>
+  <ol class="landing-steps">
+    {
+      steps.map(([title, text], i) => (
+        <li class="landing-step">
+          <span class="landing-step__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+          <h3>{title}</h3>
+          <p>{text}</p>
+        </li>
+      ))
+    }
+  </ol>
+  <a class="landing-link" href={`${base}/workflow/flow_diagram/`}>
+    See the full workflow <Icon name="right-arrow" />
+  </a>
+</section>

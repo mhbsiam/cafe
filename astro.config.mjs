@@ -19,7 +19,12 @@ export default defineConfig({
           href: "https://github.com/mhbsiam/cafe",
         },
       ],
-      customCss: ["./src/styles/custom.css"],
+      customCss: ["./src/styles/custom.css", "./src/styles/landing.css"],
+      components: {
+        SiteTitle: "./src/components/overrides/SiteTitle.astro",
+        ThemeProvider: "./src/components/overrides/ThemeProvider.astro",
+        ThemeSelect: "./src/components/overrides/ThemeSelect.astro",
+      },
       sidebar: [
         {
           label: "Getting Started",
