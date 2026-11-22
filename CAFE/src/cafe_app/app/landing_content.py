@@ -29,16 +29,26 @@ def render_landing_page(
     include_system_requirements=True,
 ):
     """Render the CAFE welcome page (workflow_image, how_to_title, and system-requirements section vary by build)."""
-    st.image(os.path.join(IMG_DIR, "logo.png"), caption="", width="stretch")
     st.logo(os.path.join(IMG_DIR, "s_logo.png"))
+    st.image(os.path.join(IMG_DIR, "logo.png"), caption="", width="stretch")
 
-    st.title("Cell Analyzer for Flow Experiment")
-    st.subheader("Explore and analyze flow cytometry data interactively")
-
+    # Hero mirrors the docs landing page (badge, display headline, pill links).
     st.markdown(
-        "This tool analyzes immune cells from spectral flow cytometry and generates "
-        "publishable figures. For detailed documentation, visit the "
-        "[GitHub page](https://github.com/mhbsiam/cafe)."
+        """
+        <section class="cafe-hero">
+          <p class="cafe-hero__badge"><span class="cafe-hero__dot"></span>
+            Published in <em>Bioinformatics</em><span class="cafe-hero__year">2025</span></p>
+          <h1 class="cafe-hero__title">Cell Analyzer for Flow Experiment</h1>
+          <p class="cafe-hero__lede">Explore and analyze spectral flow cytometry data interactively.
+            CAFE analyzes immune cells and generates publishable figures, without writing code.</p>
+          <p class="cafe-hero__actions">
+            <a class="cafe-hero__btn cafe-hero__btn--primary" href="https://mhbsiam.github.io/cafe/" target="_blank" rel="noopener">Read the docs</a>
+            <a class="cafe-hero__btn" href="https://doi.org/10.1093/bioinformatics/btaf176" target="_blank" rel="noopener">Read the paper</a>
+            <a class="cafe-hero__btn cafe-hero__btn--ghost" href="https://github.com/mhbsiam/cafe" target="_blank" rel="noopener">GitHub</a>
+          </p>
+        </section>
+        """,
+        unsafe_allow_html=True,
     )
     st.markdown("---")
 
@@ -47,7 +57,7 @@ def render_landing_page(
         """
         If you use CAFE in your research, please cite our papers:
 
-        > Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Mallikarjun Patil, Satwik Acharyya, and Daniel Tyrrell. “Cafe: An Integrated Web App for High-Dimensional Analysis and Visualization in Spectral Flow Cytometry,” *bioRxiv* (2024). https://doi.org/10.1101/2024.12.03.626714.
+        > Md Hasanul Banna Siam, Md Akkas Ali, Donald Vardaman, Satwik Acharyya, Mallikarjun Patil, Daniel J Tyrrell, CAFE: an integrated web app for high-dimensional analysis and visualization in spectral flow cytometry, *Bioinformatics*, Volume 41, Issue 6, June 2025, btaf176, https://doi.org/10.1093/bioinformatics/btaf176
 
         > Donald Vardaman, Md Akkas Ali, Md Hasanul Banna Siam, Chase Bolding, Harrison Tidwell, Holly R. Stephens, Mallikarjun Patil, and Daniel J. Tyrrell. "Development of a Spectral Flow Cytometry Analysis Pipeline for High-Dimensional Immune Cell Characterization." *The Journal of Immunology* (2024). https://doi.org/10.4049/jimmunol.2400370.
         """

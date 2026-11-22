@@ -19,6 +19,9 @@ from session_store import ensure_token, restore_session_adata, render_clear_cont
 
 # Refresh-persistence: mint a per-session token (survives refresh via the URL) and, if the browser was
 # refreshed, restore the loaded AnnData from disk before any page runs.
+# Sidebar is the app's main navigation: always start it open (its collapse button is hidden in theme.py).
+st.set_page_config(initial_sidebar_state="expanded")
+
 ensure_token()
 restore_session_adata()
 

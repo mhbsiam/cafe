@@ -1,0 +1,8 @@
+---
+// CAFE docs are light-only: always set the light theme and ignore stored or system preferences.
+---
+
+<script is:inline>
+	document.documentElement.dataset.theme = 'light';
+	window.StarlightThemeProvider = { updatePickers() {} };
+</script>

@@ -35,6 +35,7 @@ from scipy.stats import (
 
 from _plot_export import deferred_download_button, plotly_image_bytes
 from embedding_explorer import render_embedding_explorer
+from flow_explorer import render_flow_explorer
 from theme import IMG_DIR, apply_theme, info_card, page_header
 from utils import (
     safe_flatten,
@@ -187,7 +188,14 @@ st.caption("Pan, zoom, hover, and lasso-select cells to profile them. Recolor wi
 
 @st.fragment
 def render_interactive_explorer():
-    render_embedding_explorer(st.session_state.adata, key_prefix="umap_explorer")
+    # Only the open tab renders: both share the selection-summary widgets, whose keys would clash.
+    umap_tab, flow_tab = st.tabs(["UMAP", "Flow Plot"], on_change="rerun")
+    if umap_tab.open:
+        with umap_tab:
+            render_embedding_explorer(st.session_state.adata, key_prefix="umap_explorer")
+    if flow_tab.open:
+        with flow_tab:
+            render_flow_explorer(st.session_state.adata, key_prefix="flow_explorer")
 
 render_interactive_explorer()
 st.divider()

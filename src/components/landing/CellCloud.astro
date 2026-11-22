@@ -1,0 +1,226 @@
+---
+// Decorative hero visual: an animated UMAP-like "cell cloud" drawn on canvas.
+// Without JS the area stays blank (the axes and chip are hidden until the script runs).
+---
+
+<div class="landing-cloud" data-cell-cloud aria-hidden="true">
+  <canvas></canvas>
+  <span class="landing-cloud__axes"><span>UMAP 1</span><span>UMAP 2</span></span>
+  <span class="landing-cloud__chip"><span class="landing-cloud__chip-dot"></span>Leiden clusters</span>
+  <span data-probe hidden></span>
+</div>
+
+<script>
+  const TAU = Math.PI * 2;
+  const MAX = 6000;
+  // Islands: [x, y, sx, sy, rotation, weight, colour]; colour 0-2 = spectrum-1..3, 3 = accent.
+  const ISLANDS = [
+    [1.0, 0.6, 0.19, 0.13, -0.3, 0.12, 0],
+    [-0.98, -0.5, 0.15, 0.11, 0.5, 0.09, 2],
+    [0.3, -0.72, 0.12, 0.08, 0.2, 0.07, 3],
+    [-0.25, 0.78, 0.13, 0.08, -0.6, 0.07, 1],
+    [1.22, -0.55, 0.08, 0.07, 0, 0.05, 2],
+    [-1.25, 0.3, 0.07, 0.06, 0, 0.03, 3],
+  ];
+  const GROUPS = ISLANDS.length + 3; // ribbon, islands, ring, dust
+
+  function mulberry32(a: number) {
+    return () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Fixed seed: the same cloud on every load, in unit space x in [-1.4, 1.4], y in [-1, 1].
+  function buildCloud() {
+    const rand = mulberry32(7);
+    const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(TAU * rand());
+    const P = {
+      x: new Float32Array(MAX), y: new Float32Array(MAX), z: new Float32Array(MAX),
+      ph: new Float32Array(MAX), r: new Float32Array(MAX), g: new Uint8Array(MAX),
+    };
+    const lists: number[][] = Array.from({ length: 12 }, () => []);
+    for (let i = 0; i < MAX; i++) {
+      const pick = rand();
+      let z = rand(); // depth: far points are smaller, dimmer and move less
+      let x: number, y: number, d: number, c: number, g: number;
+      if (pick < 0.45) {
+        // A curved "trajectory" ribbon whose colour shifts along its length.
+        const u = rand();
+        const o = gauss();
+        const w = 0.06 + 0.09 * Math.sin(u * Math.PI) ** 2;
+        x = -1.15 + 2.3 * u + 0.02 * gauss();
+        y = 0.3 * Math.sin(u * 4.2 + 0.3) - 0.05 + o * w;
+        d = Math.abs(o);
+        c = Math.min(2, Math.max(0, Math.floor(u * 3 + (rand() - 0.5) * 0.6)));
+        g = 0;
+      } else if (pick < 0.88) {
+        let k = 0, acc = 0.45 + ISLANDS[0][5];
+        while (pick >= acc && k < ISLANDS.length - 1) acc += ISLANDS[++k][5];
+        const [cx, cy, sx, sy, rot, , col] = ISLANDS[k];
+        const gx = gauss(), gy = gauss();
+        const lx = gx * sx, ly = gy * sy;
+        x = cx + lx * Math.cos(rot) - ly * Math.sin(rot);
+        y = cy + lx * Math.sin(rot) + ly * Math.cos(rot);
+        d = Math.hypot(gx, gy);
+        c = col;
+        g = k + 1;
+      } else if (pick < 0.96) {
+        // A tilted ring, like cycling cells in a UMAP.
+        const a = rand() * TAU, o = gauss(), rr = 0.2 + o * 0.03;
+        x = -0.4 + rr * Math.cos(a);
+        y = -0.62 + rr * 0.7 * Math.sin(a);
+        d = Math.abs(o) * 1.2;
+        c = 1;
+        g = GROUPS - 2;
+      } else {
+        // Faint background dust, mostly in a far, slow wave behind the clusters.
+        x = (rand() * 2 - 1) * 1.4;
+        y = rand() < 0.6 ? 0.5 * Math.sin(x * 1.8 + 0.8) + 0.06 * gauss() : rand() * 2 - 1;
+        z *= 0.45;
+        d = 3;
+        c = Math.floor(rand() * 3);
+        g = GROUPS - 1;
+      }
+      let b = d < 0.8 ? 2 : d < 1.6 ? 1 : 0;
+      if (z < 0.3 && b) b--;
+      P.x[i] = x; P.y[i] = y; P.z[i] = z; P.g[i] = g;
+      P.ph[i] = rand() * TAU;
+      P.r[i] = (0.5 + 0.9 * z) * (rand() < 0.04 ? 1.8 : 1);
+      lists[c * 3 + b].push(i);
+    }
+    return { ...P, lists: lists.map((l) => Uint16Array.from(l)) };
+  }
+
+  const el = document.querySelector<HTMLElement>('[data-cell-cloud]');
+  const canvas = el?.querySelector('canvas');
+  const ctx = canvas?.getContext('2d');
+  const probe = el?.querySelector<HTMLElement>('[data-probe]');
+
+  if (el && canvas && ctx && probe) {
+    const cloud = buildCloud();
+    const px = new Float32Array(MAX), py = new Float32Array(MAX);
+    const drift = new Float32Array(GROUPS * 2);
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    let colors: string[] = [];
+    let sprites: HTMLCanvasElement[] = [];
+    let w = 0, h = 0, dpr = 1, n = 0, t = 8, last = 0, raf = 0, onScreen = false;
+
+    // Soft glowing dot: fill with the colour, then cut it to a radial alpha falloff.
+    // (Masking with an alpha-only gradient avoids dark fringes from colour interpolation.)
+    const makeSprite = (color: string) => {
+      const sprite = document.createElement('canvas');
+      sprite.width = sprite.height = 48;
+      const c = sprite.getContext('2d')!;
+      c.fillStyle = color;
+      c.fillRect(0, 0, 48, 48);
+      c.globalCompositeOperation = 'destination-in';
+      const grad = c.createRadialGradient(24, 24, 0, 24, 24, 24);
+      grad.addColorStop(0, 'rgba(0,0,0,1)');
+      grad.addColorStop(0.14, 'rgba(0,0,0,0.85)');
+      grad.addColorStop(0.32, 'rgba(0,0,0,0.2)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = grad;
+      c.fillRect(0, 0, 48, 48);
+      return sprite;
+    };
+
+    // Resolve tokens through a probe so any CSS colour syntax (oklch, color-mix) works.
+    const readColors = () => {
+      colors = ['--cafe-spectrum-1', '--cafe-spectrum-2', '--cafe-spectrum-3', '--sl-color-accent'].map((v) => {
+        probe.style.color = `var(${v}, var(--sl-color-accent))`;
+        return getComputedStyle(probe).color;
+      });
+      sprites = colors.map(makeSprite);
+    };
+
+    const draw = () => {
+      if (!w || !h) return;
+      const s = Math.min(w / 3, h / 2.3), ox = w / 2, oy = h / 2;
+      const rot = 0.05 * Math.sin(t * 0.04), cr = Math.cos(rot), sr = Math.sin(rot);
+      for (let k = 0; k < GROUPS; k++) {
+        drift[k * 2] = 0.02 * Math.sin(t * 0.11 + k * 1.7);
+        drift[k * 2 + 1] = 0.02 * Math.cos(t * 0.09 + k * 2.3);
+      }
+      const { x: bx, y: by, z, ph, g, r, lists } = cloud;
+      for (let i = 0; i < n; i++) {
+        const p = 0.4 + 0.6 * z[i];
+        // Gentle per-cell wobble plus a slow travelling wave across the whole cloud.
+        const x = bx[i] + drift[g[i] * 2] + p * (0.012 * Math.sin(t * 0.5 + ph[i]) + 0.014 * Math.cos(by[i] * 2.6 - t * 0.27));
+        const y = by[i] + drift[g[i] * 2 + 1] + p * (0.012 * Math.cos(t * 0.42 + ph[i] * 1.3) + 0.022 * Math.sin(bx[i] * 2.2 - t * 0.35));
+        px[i] = ox + (x * cr - y * sr) * s;
+        py[i] = oy + (x * sr + y * cr) * s;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      const alpha = [0.25, 0.45, 0.78];
+      for (let b = 0; b < 3; b++) {
+        ctx.globalAlpha = alpha[b];
+        for (let c = 0; c < 4; c++) {
+          const list = lists[c * 3 + b];
+          if (b === 2) {
+            // Bright cells: one glow sprite each, so overlaps add up into luminous cores.
+            for (const i of list) {
+              if (i >= n) continue;
+              const d = r[i] * 7;
+              ctx.drawImage(sprites[c], px[i] - d / 2, py[i] - d / 2, d, d);
+            }
+            continue;
+          }
+          // Dim cells: one batched path per colour keeps this cheap.
+          ctx.fillStyle = colors[c];
+          ctx.beginPath();
+          for (const i of list) {
+            if (i >= n) continue;
+            ctx.moveTo(px[i] + r[i], py[i]);
+            ctx.arc(px[i], py[i], r[i], 0, TAU);
+          }
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      if (now - last < 33) return; // ~30 fps is plenty for slow drift
+      t += Math.min(now - last, 100) / 1000;
+      last = now;
+      draw();
+    };
+
+    const sync = () => {
+      const run = onScreen && !document.hidden && !reduce.matches;
+      if (run && !raf) {
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+      } else if (!run && raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    };
+
+    new ResizeObserver(() => {
+      w = canvas.clientWidth;
+      h = canvas.clientHeight;
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      n = Math.max(1400, Math.min(MAX, Math.round((w * h) / 55)));
+      draw();
+    }).observe(canvas);
+
+    new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      sync();
+    }).observe(el);
+
+    document.addEventListener('visibilitychange', sync);
+    reduce.addEventListener('change', sync);
+    readColors();
+    el.classList.add('is-live');
+  }
+</script>

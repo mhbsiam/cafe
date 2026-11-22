@@ -169,7 +169,7 @@ def _render_selection_summary(adata, event, cluster_col):
         st.caption(f"By {cluster_col}")
         by_cluster = sel[cluster_col].astype(str).value_counts()
         by_cluster = by_cluster.reindex(safe_sort_clusters(by_cluster.index))
-        st.bar_chart(by_cluster, height=180, color="#0f5070")
+        st.bar_chart(by_cluster, height=180, color="#0c5a7a")
     if "Group" in sel.columns:
         with cols[1]:
             st.caption("By group")

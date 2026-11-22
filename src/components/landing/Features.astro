@@ -1,0 +1,30 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+
+const features = [
+  ['document', 'Upload CSVs', 'Import scaled FlowJo exports that follow the SampleID_Group.csv naming convention.'],
+  ['approve-check', 'Clean and correct', 'Run MAD-based QC, optional PCA and ComBat batch correction in a guided pipeline.'],
+  ['magnifier', 'Cluster and explore', 'Compute UMAP and Leiden clusters, then pan, zoom and select cells interactively.'],
+  ['download', 'Export figures', 'Download 300 DPI PNG, PDF or SVG plots, plus a ZIP of tables and the processed AnnData object.'],
+] as const;
+---
+
+<section class="landing-section" aria-labelledby="landing-features">
+  <header class="landing-head">
+    <p class="landing-kicker">Capabilities</p>
+    <h2 id="landing-features" class="landing-h2">What CAFE does</h2>
+  </header>
+  <div class="landing-features">
+    {
+      features.map(([icon, title, text]) => (
+        <article class="landing-card">
+          <span class="landing-card__icon">
+            <Icon name={icon} />
+          </span>
+          <h3>{title}</h3>
+          <p>{text}</p>
+        </article>
+      ))
+    }
+  </div>
+</section>

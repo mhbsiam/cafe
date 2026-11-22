@@ -1,0 +1,27 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<ul class="landing-trust" aria-label="Key facts">
+  <li>
+    <span class="landing-trust__icon"><Icon name="heart" /></span>
+    <span><strong>Free and open source</strong> Code and releases on GitHub</span>
+  </li>
+  <li>
+    <span class="landing-trust__icon"><Icon name="laptop" /></span>
+    <span><strong>Windows, macOS, Linux</strong> Install with uv, pixi or conda</span>
+  </li>
+  <li>
+    <span class="landing-trust__icon"><Icon name="approve-check-circle" /></span>
+    <span><strong>Runs locally</strong> Your data never leaves your machine</span>
+  </li>
+  <li>
+    <span class="landing-trust__icon"><Icon name="rocket" /></span>
+    <span>
+      <strong>HPC ready</strong>
+      <a href={`${base}/others/data_processing_hpc/`}>Batch pipeline for large datasets</a>
+    </span>
+  </li>
+</ul>
