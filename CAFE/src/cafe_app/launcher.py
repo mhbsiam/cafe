@@ -9,10 +9,14 @@ _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 # identical no matter where it is launched from.
 _CONFIG_FLAGS = [
     "--server.address=127.0.0.1",
-    "--theme.primaryColor=#0f5070",
+    "--theme.base=light",
+    "--theme.primaryColor=#0c5a7a",
     "--theme.backgroundColor=#ffffff",
-    "--theme.secondaryBackgroundColor=#f8f9fa",
-    "--theme.textColor=#1a262a",
+    "--theme.secondaryBackgroundColor=#f6f8f9",
+    "--theme.textColor=#0b1a20",
+    "--theme.borderColor=#d7e0e4",
+    "--theme.linkColor=#0c5a7a",
+    "--theme.baseRadius=0.75rem",
     "--theme.font=sans serif",
     "--browser.gatherUsageStats=false",
 ]

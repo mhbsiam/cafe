@@ -1,4 +1,4 @@
-"""Shared design tokens, global CSS, and UI helpers for CAFE (teal accent, Source Sans 3, reduced-motion aware)."""
+"""Shared design tokens, global CSS, and UI helpers for CAFE (mirrors the docs site: teal accent, IBM Plex Sans / Instrument Sans, reduced-motion aware)."""
 import os
 from dataclasses import dataclass
 
@@ -12,25 +12,39 @@ IMG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
 class Tokens:
     """Single source of truth for CAFE design tokens."""
 
-    # Color
-    primary: str = "#0f5070"
-    primary_hover: str = "#0a3d57"
-    primary_light: str = "#e6f1f4"
-    primary_lighter: str = "#f0f6f8"
+    # Color (light values of the docs site's tokens in src/styles/custom.css)
+    primary: str = "#0c5a7a"
+    primary_hover: str = "#083f57"
+    primary_light: str = "#ddedf3"
+    primary_lighter: str = "#eef6f9"
     background: str = "#ffffff"
-    surface: str = "#f8f9fa"
-    surface_hover: str = "#e9ecef"
-    border: str = "#d5e0e4"
-    text: str = "#1a262a"
-    text_muted: str = "#5c6e74"
-    text_subtle: str = "#8fa3aa"
+    surface: str = "#f6f8f9"
+    surface_hover: str = "#e2e9ec"
+    border: str = "#d7e0e4"
+    border_strong: str = "#c5d1d5"
+    text: str = "#0b1a20"
+    text_muted: str = "#53656c"
+    text_subtle: str = "#627579"  # 4.5:1 on surface, AA for small text
+    spectrum_1: str = "#0e9bbd"
+    spectrum_2: str = "#3f6fdc"
+    spectrum_3: str = "#7b4fd4"
     success: str = "#2d6a4f"
     warning: str = "#b35900"
     error: str = "#c1121f"
     white: str = "#ffffff"
 
     # Typography
-    font: str = '"Source Sans 3", "Source Sans Pro", sans-serif'
+    font: str = '"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif'
+    font_display: str = '"Instrument Sans", "IBM Plex Sans", ui-sans-serif, sans-serif'
+    font_mono: str = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
+
+    # Shape
+    radius_sm: str = "8px"
+    radius: str = "12px"
+    radius_lg: str = "20px"
+    shadow_sm: str = "0 1px 2px rgb(11 34 44 / 0.06), 0 1px 1px rgb(11 34 44 / 0.04)"
+    shadow: str = "0 6px 16px -6px rgb(11 34 44 / 0.12), 0 2px 4px -2px rgb(11 34 44 / 0.06)"
+    shadow_lg: str = "0 28px 56px -24px rgb(11 34 44 / 0.22), 0 8px 16px -8px rgb(11 34 44 / 0.08)"
 
     # Spacing (base 4px grid)
     space_xs: str = "4px"
@@ -58,7 +72,7 @@ _EXPO = TOKENS.expo
 # CSS variables + font import
 _CSS_VARIABLES = f"""
 <style>
-@import url('https://fonts.bunny.net/css?family=source-sans-3:400,600,700&display=swap');
+@import url('https://fonts.bunny.net/css?family=ibm-plex-sans:400,400i,500,600|instrument-sans:500,600,700|jetbrains-mono:400,500&display=swap');
 
 :root, [data-testid="stApp"] {{
   --cafe-primary: {TOKENS.primary};
@@ -69,6 +83,18 @@ _CSS_VARIABLES = f"""
   --cafe-surface: {TOKENS.surface};
   --cafe-surface-hover: {TOKENS.surface_hover};
   --cafe-border: {TOKENS.border};
+  --cafe-border-strong: {TOKENS.border_strong};
+  --cafe-spectrum-1: {TOKENS.spectrum_1};
+  --cafe-spectrum-2: {TOKENS.spectrum_2};
+  --cafe-spectrum-3: {TOKENS.spectrum_3};
+  --cafe-font-display: {TOKENS.font_display};
+  --cafe-font-mono: {TOKENS.font_mono};
+  --cafe-radius-sm: {TOKENS.radius_sm};
+  --cafe-radius: {TOKENS.radius};
+  --cafe-radius-lg: {TOKENS.radius_lg};
+  --cafe-shadow-sm: {TOKENS.shadow_sm};
+  --cafe-shadow: {TOKENS.shadow};
+  --cafe-shadow-lg: {TOKENS.shadow_lg};
   --cafe-text: {TOKENS.text};
   --cafe-text-muted: {TOKENS.text_muted};
   --cafe-text-subtle: {TOKENS.text_subtle};
@@ -138,6 +164,104 @@ button[data-testid*="stBaseButton"] div {{
 [data-testid="stSidebar"] .block-container {{
   padding-top: var(--cafe-space-lg) !important;
 }}
+
+/* --- Docs-site look: display headings, ink text, hairline surfaces ------- */
+html, body {{ -webkit-font-smoothing: antialiased; }}
+::selection {{ background: rgba(12, 90, 122, 0.22); }}
+
+[data-testid="stMain"] h1,
+[data-testid="stMain"] h2,
+[data-testid="stMain"] h3,
+[data-testid="stMain"] h4 {{
+  font-family: var(--cafe-font-display) !important;
+  color: var(--cafe-text);
+  letter-spacing: -0.02em;
+}}
+[data-testid="stMain"] h1 {{ font-weight: 600 !important; }}
+
+code, pre, kbd, [data-testid="stCode"] * {{ font-family: var(--cafe-font-mono) !important; }}
+[data-testid="stMarkdownContainer"] code {{
+  background: var(--cafe-surface);
+  border: 1px solid var(--cafe-border);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+  color: var(--cafe-text);
+  font-size: 0.85em;
+}}
+
+/* Sidebar: white rail with a hairline, quiet group labels, tinted active pill */
+[data-testid="stSidebar"] {{
+  background: var(--cafe-background) !important;
+  border-right: 1px solid var(--cafe-border);
+}}
+[data-testid="stSidebarNav"] header,
+[data-testid="stNavSectionHeader"] {{
+  font-size: 0.6875rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cafe-text-subtle) !important;
+}}
+[data-testid="stSidebarNav"] a {{
+  border-radius: var(--cafe-radius-sm);
+}}
+/* Navigation stays open: no collapse button. The expand control is kept so a
+   sidebar auto-collapsed on a narrow window can still be reopened. */
+[data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+[data-testid="stSidebarNav"] a[aria-current="page"] {{
+  background: var(--cafe-primary-light) !important;
+}}
+[data-testid="stSidebarNav"] a[aria-current="page"] span {{
+  color: var(--cafe-primary) !important;
+  font-weight: 600;
+}}
+
+/* Buttons: pills like the site's CTAs, visible offset focus ring */
+button[data-testid*="stBaseButton"] {{ border-radius: 999px !important; }}
+button[data-testid*="stBaseButton-primary"] {{ box-shadow: 0 6px 16px -8px rgba(12, 90, 122, 0.6); }}
+button[data-testid*="stBaseButton"]:focus-visible {{
+  outline: 2px solid var(--cafe-primary) !important;
+  outline-offset: 2px;
+}}
+
+/* Number steppers: white pill field with round outlined − / + buttons (app-wide). */
+[data-testid="stNumberInputContainer"] {{
+  background: var(--cafe-background) !important;
+  border: 1px solid var(--cafe-border-strong) !important;
+  border-radius: 999px !important;
+  padding-right: 4px;
+}}
+[data-testid="stNumberInputContainer"]:focus-within {{ border-color: var(--cafe-primary) !important; }}
+[data-testid="stNumberInputField"] {{ background: transparent !important; font-variant-numeric: tabular-nums; }}
+[data-testid="stNumberInputStepDown"],
+[data-testid="stNumberInputStepUp"] {{
+  width: 28px !important; height: 28px !important; margin: auto 2px;
+  border: 1px solid var(--cafe-border) !important; border-radius: 999px !important;
+  background: var(--cafe-surface) !important; color: var(--cafe-text) !important;
+}}
+[data-testid="stNumberInputStepDown"]:hover:not(:disabled),
+[data-testid="stNumberInputStepUp"]:hover:not(:disabled) {{
+  background: var(--cafe-primary-light) !important; border-color: var(--cafe-primary) !important;
+  color: var(--cafe-primary) !important;
+}}
+
+/* Raised panels: alerts, expanders, uploader, tables share the site's card shape */
+[data-testid="stMain"] [data-testid="stAlert"] > div,
+[data-testid="stMain"] [data-testid="stExpander"] details,
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stMain"] [data-testid="stDataFrame"],
+[data-testid="stMain"] [data-testid="stTable"] {{
+  border-radius: var(--cafe-radius) !important;
+}}
+[data-testid="stMain"] [data-testid="stExpander"] details {{
+  border-color: var(--cafe-border) !important;
+  box-shadow: var(--cafe-shadow-sm);
+}}
+[data-testid="stFileUploaderDropzone"] {{
+  border: 1px dashed var(--cafe-border-strong) !important;
+  background: var(--cafe-surface) !important;
+}}
+[data-testid="stMain"] hr {{ border-color: var(--cafe-border) !important; }}
 </style>
 """
 
@@ -172,8 +296,8 @@ _PREMIUM_CSS = f"""
     transform: translateY(-1px);
   }}
   [data-testid="stMain"] [data-testid*="stBaseButton-primary"]:hover {{
-    /* Mirrors .streamlit/config.toml's primaryColor (#0f5070) */
-    box-shadow: 0 4px 14px rgba(15, 80, 112, 0.35);
+    /* Mirrors .streamlit/config.toml's primaryColor (#0c5a7a) */
+    box-shadow: 0 8px 20px -8px rgba(12, 90, 122, 0.55);
   }}
   [data-testid="stMain"] [data-testid*="stBaseButton-secondary"]:active,
   [data-testid="stMain"] [data-testid*="stBaseButton-primary"]:active {{
@@ -230,8 +354,8 @@ _PREMIUM_CSS = f"""
   }}
   [data-testid="stFileUploaderDropzone"]:hover {{
     transform: translateY(-1px);
-    border-color: rgba(15, 80, 112, 0.55);
-    box-shadow: 0 6px 18px rgba(15, 80, 112, 0.12);
+    border-color: rgba(12, 90, 122, 0.55);
+    box-shadow: var(--cafe-shadow);
   }}
 
   /* --- Tabs: glide the underline and fade the switched-in panel ----------- */
@@ -295,28 +419,53 @@ _HERO_CSS = f"""
 </style>
 """
 
-# Landing-page ambience (dot field + scroll reveals)
+# Landing-page hero styles + scroll reveals (plain white page, no backdrop)
 _LANDING_CSS = f"""
 <style>
-[data-testid="stApp"]::before {{
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: radial-gradient(rgba(15, 80, 112, 0.10) 1px, transparent 1.4px);
-  background-size: 26px 26px;
-  opacity: 0.5;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
-          mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
+/* Welcome hero: same badge / display headline / pill links as the docs landing page. */
+.cafe-hero {{ padding: var(--cafe-space-md) 0 var(--cafe-space-sm); }}
+.cafe-hero__badge {{
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 0 0 var(--cafe-space-md) !important;
+  padding: 4px 12px 4px 10px;
+  border: 1px solid var(--cafe-border); border-radius: 999px;
+  background: var(--cafe-background); box-shadow: var(--cafe-shadow-sm);
+  font-size: 0.8125rem !important; font-weight: 500; color: var(--cafe-text);
 }}
-@media (prefers-reduced-motion: no-preference) {{
-  [data-testid="stApp"]::before {{
-    animation: cafe-drift 26s linear infinite alternate;
-  }}
+.cafe-hero__dot {{
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--cafe-primary); box-shadow: 0 0 0 3px var(--cafe-primary-light);
 }}
-/* Keep real content above the texture. */
-[data-testid="stMain"] .block-container {{ position: relative; z-index: 1; }}
+.cafe-hero__year {{
+  padding-left: 8px; border-left: 1px solid var(--cafe-border);
+  font-family: var(--cafe-font-mono); font-size: 0.75rem; color: var(--cafe-text-muted);
+}}
+[data-testid="stMain"] h1.cafe-hero__title {{
+  margin: 0 0 var(--cafe-space-md); padding: 0;
+  font-size: clamp(2.25rem, 5vw, 3.25rem) !important; line-height: 1.05;
+  letter-spacing: -0.035em;
+}}
+.cafe-hero__lede {{
+  max-width: 38rem; font-size: 1.0625rem !important; line-height: 1.6;
+  color: var(--cafe-text-muted);
+}}
+.cafe-hero__actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: var(--cafe-space-lg) !important; }}
+.cafe-hero__btn {{
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 18px;
+  border: 1px solid var(--cafe-border-strong); border-radius: 999px;
+  background: var(--cafe-background); color: var(--cafe-text) !important;
+  font-weight: 600; font-size: 0.9375rem; text-decoration: none !important;
+  box-shadow: var(--cafe-shadow-sm);
+}}
+.cafe-hero__btn:hover {{ border-color: var(--cafe-primary); }}
+.cafe-hero__btn:focus-visible {{ outline: 2px solid var(--cafe-primary); outline-offset: 2px; }}
+.cafe-hero__btn--primary {{
+  background: var(--cafe-primary); border-color: var(--cafe-primary); color: var(--cafe-white) !important;
+  box-shadow: 0 8px 20px -10px rgba(12, 90, 122, 0.7);
+}}
+.cafe-hero__btn--primary:hover {{ background: var(--cafe-primary-hover); }}
+.cafe-hero__btn--ghost {{ border-color: transparent; background: transparent; box-shadow: none; }}
+
 
 @supports (animation-timeline: view()) {{
   @media (prefers-reduced-motion: no-preference) {{
@@ -328,10 +477,6 @@ _LANDING_CSS = f"""
   }}
 }}
 
-@keyframes cafe-drift {{
-  from {{ background-position: 0 0; }}
-  to {{ background-position: 90px 140px; }}
-}}
 @keyframes cafe-reveal {{
   from {{ opacity: 0; transform: translateY(20px); }}
   to {{ opacity: 1; transform: translateY(0); }}
@@ -387,6 +532,7 @@ _STEPPER_CSS = """
   border-color: var(--cafe-primary);
   background: var(--cafe-primary);
   color: var(--cafe-white);
+  box-shadow: 0 0 0 4px var(--cafe-primary-light);
 }
 .cafe-stepper__step--done .cafe-stepper__dot {
   border-color: var(--cafe-primary);
@@ -403,8 +549,9 @@ _STEPPER_CSS = """
 _INFO_CARD_CSS = """
 <style>
 .cafe-info-card {
-  padding: var(--cafe-space-md);
-  border-radius: 8px;
+  padding: var(--cafe-space-md) var(--cafe-space-lg);
+  border-radius: var(--cafe-radius);
+  box-shadow: var(--cafe-shadow-sm);
   border: 1px solid var(--cafe-border);
   background: var(--cafe-surface);
   margin-bottom: var(--cafe-space-md);
@@ -412,6 +559,7 @@ _INFO_CARD_CSS = """
 
 .cafe-info-card__title {
   margin: 0 0 var(--cafe-space-xs) 0;
+  font-family: var(--cafe-font-display);
   font-size: 1rem;
   font-weight: 600;
   color: var(--cafe-text);
@@ -433,6 +581,8 @@ _INFO_CARD_CSS = """
 }
 .cafe-section-header__title {
   margin: 0;
+  font-family: var(--cafe-font-display);
+  letter-spacing: -0.01em;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--cafe-text);
@@ -550,7 +700,7 @@ _MERGE_BUILDER_CSS = """
   background: var(--cafe-surface);
   border: 1px solid var(--cafe-border);
   font-size: 0.875rem;
-  font-family: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+  font-family: var(--cafe-font-mono);
   color: var(--cafe-text-muted);
   word-break: break-all;
   margin-top: var(--cafe-space-sm);
@@ -598,7 +748,7 @@ def apply_theme():
 
 
 def landing_ambient():
-    """Inject the welcome-page backdrop + scroll reveals (safe to omit; page is then static)."""
+    """Inject the welcome-page hero styles + scroll reveals."""
     st.markdown(_LANDING_CSS, unsafe_allow_html=True)
 
 
