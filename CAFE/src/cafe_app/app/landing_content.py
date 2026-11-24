@@ -42,7 +42,7 @@ def render_landing_page(
         <section class="cafe-hero">
           <p class="cafe-hero__badge"><span class="cafe-hero__dot"></span>
             Published in <em>Bioinformatics</em><span class="cafe-hero__year">2025</span></p>
-          <h1 class="cafe-hero__title">Spectral flow cytometry analysis, no code required.</h1>
+          <h1 class="cafe-hero__title">Cell Analyzer for Flow Experiment</h1>
           <p class="cafe-hero__lede">Explore and analyze spectral flow cytometry data interactively.
             CAFE analyzes immune cells and generates publishable figures, without writing code.</p>
           <p class="cafe-hero__actions">
