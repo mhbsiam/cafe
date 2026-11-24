@@ -19,6 +19,17 @@ export default defineConfig({
           href: "https://github.com/mhbsiam/cafe",
         },
       ],
+      // Fonts load from <head>, not a CSS @import, so the browser fetches them in parallel.
+      head: [
+        { tag: "link", attrs: { rel: "preconnect", href: "https://fonts.bunny.net", crossorigin: "" } },
+        {
+          tag: "link",
+          attrs: {
+            rel: "stylesheet",
+            href: "https://fonts.bunny.net/css?family=ibm-plex-sans:400,400i,500,600|instrument-sans:500,600,700|jetbrains-mono:400,500&display=swap",
+          },
+        },
+      ],
       customCss: ["./src/styles/custom.css", "./src/styles/landing.css"],
       components: {
         SiteTitle: "./src/components/overrides/SiteTitle.astro",

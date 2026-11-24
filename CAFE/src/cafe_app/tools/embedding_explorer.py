@@ -8,6 +8,7 @@ from matplotlib.colors import to_hex
 from scipy.sparse import issparse
 import streamlit as st
 
+from theme import TOKENS
 from utils import (
     safe_flatten,
     get_cluster_col,
@@ -169,11 +170,11 @@ def _render_selection_summary(adata, event, cluster_col):
         st.caption(f"By {cluster_col}")
         by_cluster = sel[cluster_col].astype(str).value_counts()
         by_cluster = by_cluster.reindex(safe_sort_clusters(by_cluster.index))
-        st.bar_chart(by_cluster, height=180, color="#0c5a7a")
+        st.bar_chart(by_cluster, height=180, color=TOKENS.primary)
     if "Group" in sel.columns:
         with cols[1]:
             st.caption("By group")
-            st.bar_chart(sel["Group"].astype(str).value_counts(), height=180, color="#3d8ba8")
+            st.bar_chart(sel["Group"].astype(str).value_counts(), height=180, color=TOKENS.spectrum_1)
 
     _render_marker_profile(adata, rows)
 
@@ -251,7 +252,7 @@ def _render_marker_profile(adata, rows):
 
     fig = go.Figure()
     if diverging:
-        colors = ["#ff4b4b" if v >= 0 else "#4b7bff" for v in sel_ord]
+        colors = [_MARKER_SCALE[-1][1] if v >= 0 else TOKENS.spectrum_2 for v in sel_ord]
         fig.add_trace(go.Bar(
             y=labels, x=sel_ord, orientation="h", marker=dict(color=colors),
             text=text, textposition="outside", cliponaxis=False,
@@ -267,7 +268,7 @@ def _render_marker_profile(adata, rows):
         ))
         fig.add_trace(go.Bar(
             y=labels, x=sel_ord, orientation="h", name="Selected",
-            marker=dict(color="#ff4b4b"), opacity=0.9,
+            marker=dict(color=_MARKER_SCALE[-1][1]), opacity=0.9,
             text=text, textposition="outside", cliponaxis=False,
             customdata=pct_ord,
             hovertemplate="%{y}: %{x:.1f}<br>%{customdata:.0f}% positive<extra>Selected</extra>",

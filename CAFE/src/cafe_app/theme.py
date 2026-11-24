@@ -1,4 +1,4 @@
-"""Shared design tokens, global CSS, and UI helpers for CAFE (mirrors the docs site: teal accent, IBM Plex Sans / Instrument Sans, reduced-motion aware)."""
+"""Shared design tokens, global CSS, and UI helpers for CAFE (mirrors the docs site: teal accent, Streamlit's built-in fonts, reduced-motion aware)."""
 import os
 from dataclasses import dataclass
 
@@ -6,7 +6,6 @@ import streamlit as st
 
 # Bundled image assets, resolved relative to this file (cwd-independent).
 IMG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img")
-
 
 @dataclass(frozen=True)
 class Tokens:
@@ -29,14 +28,12 @@ class Tokens:
     spectrum_2: str = "#3f6fdc"
     spectrum_3: str = "#7b4fd4"
     success: str = "#2d6a4f"
-    warning: str = "#b35900"
+    warning: str = "#8a4500"  # 6:1 on its 9% tint
     error: str = "#c1121f"
     white: str = "#ffffff"
 
-    # Typography
-    font: str = '"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif'
-    font_display: str = '"Instrument Sans", "IBM Plex Sans", ui-sans-serif, sans-serif'
-    font_mono: str = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
+    # Typography: Streamlit's bundled code font, so it works offline (body text uses Streamlit's default)
+    font_mono: str = '"Source Code Pro", ui-monospace, monospace'
 
     # Shape
     radius_sm: str = "8px"
@@ -69,10 +66,9 @@ TOKENS = Tokens()
 
 _EXPO = TOKENS.expo
 
-# CSS variables + font import
+# CSS variables
 _CSS_VARIABLES = f"""
 <style>
-@import url('https://fonts.bunny.net/css?family=ibm-plex-sans:400,400i,500,600|instrument-sans:500,600,700|jetbrains-mono:400,500&display=swap');
 
 :root, [data-testid="stApp"] {{
   --cafe-primary: {TOKENS.primary};
@@ -87,7 +83,6 @@ _CSS_VARIABLES = f"""
   --cafe-spectrum-1: {TOKENS.spectrum_1};
   --cafe-spectrum-2: {TOKENS.spectrum_2};
   --cafe-spectrum-3: {TOKENS.spectrum_3};
-  --cafe-font-display: {TOKENS.font_display};
   --cafe-font-mono: {TOKENS.font_mono};
   --cafe-radius-sm: {TOKENS.radius_sm};
   --cafe-radius: {TOKENS.radius};
@@ -102,7 +97,6 @@ _CSS_VARIABLES = f"""
   --cafe-warning: {TOKENS.warning};
   --cafe-error: {TOKENS.error};
   --cafe-white: {TOKENS.white};
-  --cafe-font: {TOKENS.font};
   --cafe-space-xs: {TOKENS.space_xs};
   --cafe-space-sm: {TOKENS.space_sm};
   --cafe-space-md: {TOKENS.space_md};
@@ -121,41 +115,9 @@ _CSS_VARIABLES = f"""
 </style>
 """
 
-# Global typography override
+# Global layout, headings and surfaces
 _BASE_CSS = f"""
 <style>
-html, body, [data-testid="stApp"] {{
-  font-family: var(--cafe-font) !important;
-}}
-
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] li,
-[data-testid="stMarkdownContainer"] td,
-[data-testid="stMarkdownContainer"] th,
-[data-testid="stTextInput"] label,
-[data-testid="stSelectbox"] label,
-[data-testid="stSlider"] label,
-[data-testid="stRadio"] label,
-[data-testid="stCheckbox"] label,
-[data-testid="stNumberInput"] label,
-[data-testid="stDateInput"] label,
-[data-testid="stTimeInput"] label,
-[data-testid="stFileUploader"] label,
-[data-testid="stTextArea"] label,
-[data-testid="stColorPicker"] label,
-[data-testid="stDataFrame"] td,
-[data-testid="stDataFrame"] th,
-[data-testid="stTable"] td,
-[data-testid="stTable"] th,
-[data-baseweb="select"] div,
-[data-baseweb="radio"] span,
-[data-baseweb="checkbox"] span,
-[data-baseweb="tab"] span,
-[data-baseweb="progress-bar"] div,
-button[data-testid*="stBaseButton"] div {{
-  font-family: var(--cafe-font) !important;
-}}
-
 [data-testid="stMain"] .block-container {{
   padding-top: var(--cafe-space-xl) !important;
   padding-bottom: var(--cafe-space-2xl) !important;
@@ -165,21 +127,19 @@ button[data-testid*="stBaseButton"] div {{
   padding-top: var(--cafe-space-lg) !important;
 }}
 
-/* --- Docs-site look: display headings, ink text, hairline surfaces ------- */
+/* --- Docs-site look: headings, ink text, hairline surfaces ------- */
 html, body {{ -webkit-font-smoothing: antialiased; }}
-::selection {{ background: rgba(12, 90, 122, 0.22); }}
+::selection {{ background: color-mix(in srgb, var(--cafe-primary) 22%, transparent); }}
 
 [data-testid="stMain"] h1,
 [data-testid="stMain"] h2,
 [data-testid="stMain"] h3,
 [data-testid="stMain"] h4 {{
-  font-family: var(--cafe-font-display) !important;
   color: var(--cafe-text);
   letter-spacing: -0.02em;
 }}
 [data-testid="stMain"] h1 {{ font-weight: 600 !important; }}
 
-code, pre, kbd, [data-testid="stCode"] * {{ font-family: var(--cafe-font-mono) !important; }}
 [data-testid="stMarkdownContainer"] code {{
   background: var(--cafe-surface);
   border: 1px solid var(--cafe-border);
@@ -218,7 +178,7 @@ code, pre, kbd, [data-testid="stCode"] * {{ font-family: var(--cafe-font-mono) !
 
 /* Buttons: pills like the site's CTAs, visible offset focus ring */
 button[data-testid*="stBaseButton"] {{ border-radius: 999px !important; }}
-button[data-testid*="stBaseButton-primary"] {{ box-shadow: 0 6px 16px -8px rgba(12, 90, 122, 0.6); }}
+button[data-testid*="stBaseButton-primary"] {{ box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--cafe-primary) 60%, transparent); }}
 button[data-testid*="stBaseButton"]:focus-visible {{
   outline: 2px solid var(--cafe-primary) !important;
   outline-offset: 2px;
@@ -296,8 +256,7 @@ _PREMIUM_CSS = f"""
     transform: translateY(-1px);
   }}
   [data-testid="stMain"] [data-testid*="stBaseButton-primary"]:hover {{
-    /* Mirrors .streamlit/config.toml's primaryColor (#0c5a7a) */
-    box-shadow: 0 8px 20px -8px rgba(12, 90, 122, 0.55);
+    box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--cafe-primary) 55%, transparent);
   }}
   [data-testid="stMain"] [data-testid*="stBaseButton-secondary"]:active,
   [data-testid="stMain"] [data-testid*="stBaseButton-primary"]:active {{
@@ -354,7 +313,7 @@ _PREMIUM_CSS = f"""
   }}
   [data-testid="stFileUploaderDropzone"]:hover {{
     transform: translateY(-1px);
-    border-color: rgba(12, 90, 122, 0.55);
+    border-color: color-mix(in srgb, var(--cafe-primary) 55%, transparent);
     box-shadow: var(--cafe-shadow);
   }}
 
@@ -461,7 +420,7 @@ _LANDING_CSS = f"""
 .cafe-hero__btn:focus-visible {{ outline: 2px solid var(--cafe-primary); outline-offset: 2px; }}
 .cafe-hero__btn--primary {{
   background: var(--cafe-primary); border-color: var(--cafe-primary); color: var(--cafe-white) !important;
-  box-shadow: 0 8px 20px -10px rgba(12, 90, 122, 0.7);
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--cafe-primary) 70%, transparent);
 }}
 .cafe-hero__btn--primary:hover {{ background: var(--cafe-primary-hover); }}
 .cafe-hero__btn--ghost {{ border-color: transparent; background: transparent; box-shadow: none; }}
@@ -472,7 +431,7 @@ _LANDING_CSS = f"""
     [data-testid="stMain"] .block-container .element-container {{
       animation: cafe-reveal linear both;
       animation-timeline: view();
-      animation-range: entry 0% cover 22%;
+      animation-range: entry 0% entry 40%;
     }}
   }}
 }}
@@ -488,6 +447,9 @@ _LANDING_CSS = f"""
 _STEPPER_CSS = """
 <style>
 .cafe-stepper {
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0 !important;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -498,6 +460,8 @@ _STEPPER_CSS = """
   overflow-x: auto;
 }
 .cafe-stepper__step {
+  margin: 0 !important;
+  padding: 0 !important;
   display: flex;
   align-items: center;
   gap: var(--cafe-space-sm);
@@ -557,9 +521,40 @@ _INFO_CARD_CSS = """
   margin-bottom: var(--cafe-space-md);
 }
 
+.cafe-info-card--info {
+  background: var(--cafe-primary-lighter);
+  border-color: color-mix(in srgb, var(--cafe-primary) 30%, var(--cafe-border));
+}
+.cafe-info-card--success {
+  background: color-mix(in srgb, var(--cafe-success) 8%, var(--cafe-background));
+  border-color: color-mix(in srgb, var(--cafe-success) 40%, var(--cafe-border));
+}
+.cafe-info-card--warning {
+  background: color-mix(in srgb, var(--cafe-warning) 9%, var(--cafe-background));
+  border-color: color-mix(in srgb, var(--cafe-warning) 45%, var(--cafe-border));
+}
+.cafe-info-card--error {
+  background: color-mix(in srgb, var(--cafe-error) 7%, var(--cafe-background));
+  border-color: color-mix(in srgb, var(--cafe-error) 55%, var(--cafe-border));
+}
+.cafe-info-card__kind {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cafe-info-card--success .cafe-info-card__kind { color: var(--cafe-success); }
+.cafe-info-card--warning .cafe-info-card__kind { color: var(--cafe-warning); }
+.cafe-info-card--error .cafe-info-card__kind { color: var(--cafe-error); }
+.cafe-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
 .cafe-info-card__title {
   margin: 0 0 var(--cafe-space-xs) 0;
-  font-family: var(--cafe-font-display);
   font-size: 1rem;
   font-weight: 600;
   color: var(--cafe-text);
@@ -581,7 +576,6 @@ _INFO_CARD_CSS = """
 }
 .cafe-section-header__title {
   margin: 0;
-  font-family: var(--cafe-font-display);
   letter-spacing: -0.01em;
   font-size: 1.25rem;
   font-weight: 600;
@@ -609,7 +603,6 @@ _MERGE_BUILDER_CSS = """
   font-weight: 600;
   line-height: 1.6;
   white-space: nowrap;
-  font-family: var(--cafe-font);
 }
 .cafe-chip--primary {
   background: var(--cafe-primary-light);
@@ -625,7 +618,6 @@ _MERGE_BUILDER_CSS = """
   color: var(--cafe-text-subtle);
   border: 1px solid var(--cafe-border);
   text-decoration: line-through;
-  opacity: 0.65;
 }
 
 /* ── Cluster inventory bar ────────────────────────────────────────────────── */
@@ -712,25 +704,10 @@ _MERGE_BUILDER_CSS = """
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 4px;
-  font-family: var(--cafe-font);
 }
 .cafe-format-preview__value {
   color: var(--cafe-primary);
   font-weight: 600;
-}
-
-/* ── Warning badge ────────────────────────────────────────────────────────── */
-.cafe-warn-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  border-radius: 99px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  background: #fff3e0;
-  color: var(--cafe-warning);
-  border: 1px solid #ffe0b2;
 }
 </style>
 """
@@ -784,11 +761,14 @@ def section_header(title: str, subtitle: str | None = None, step: int | None = N
 
 
 def info_card(title: str, body: str, kind: str = "info"):
-    """Render a styled info/warning/error/success card."""
-    allowed = {"info", "warning", "error", "success"}
-    kind = kind if kind in allowed else "info"
+    """Render a styled info/warning/error/success card; body is trusted HTML, so html.escape() user data first."""
+    labels = {"info": "", "success": "Done", "warning": "Warning", "error": "Error"}
+    kind = kind if kind in labels else "info"
+    role = "alert" if kind == "error" else "status"
+    label = f'<span class="cafe-info-card__kind">{labels[kind]}</span>' if labels[kind] else ""
     st.markdown(
-        f'<div class="cafe-info-card cafe-info-card--{kind}">'
+        f'<div class="cafe-info-card cafe-info-card--{kind}" role="{role}">'
+        f"{label}"
         f'<h4 class="cafe-info-card__title">{title}</h4>'
         f'<div class="cafe-info-card__body">{body}</div>'
         f"</div>",
@@ -802,22 +782,18 @@ def stepper(steps: list[str], current_index: int, done_indices: set[int] | None 
     items = []
     for i, label in enumerate(steps):
         if i in done_indices:
-            state = "done"
-            dot = "✓"
-        elif i == current_index:
-            state = "current"
-            dot = str(i + 1)
+            state, dot, extra = "done", "✓", '<span class="cafe-sr-only"> (completed)</span>'
         else:
-            state = ""
-            dot = str(i + 1)
+            state, dot, extra = ("current" if i == current_index else ""), str(i + 1), ""
+        current = ' aria-current="step"' if i == current_index else ""
         items.append(
-            f'<div class="cafe-stepper__step cafe-stepper__step--{state}">'
-            f'<span class="cafe-stepper__dot">{dot}</span>'
-            f'<span class="cafe-stepper__label">{label}</span>'
-            f"</div>"
+            f'<li class="cafe-stepper__step cafe-stepper__step--{state}"{current}>'
+            f'<span class="cafe-stepper__dot" aria-hidden="true">{dot}</span>'
+            f'<span class="cafe-stepper__label">{label}{extra}</span>'
+            f"</li>"
         )
     st.markdown(
-        f'<div class="cafe-stepper">{"".join(items)}</div>',
+        f'<ol class="cafe-stepper" aria-label="Progress">{"".join(items)}</ol>',
         unsafe_allow_html=True,
     )
 

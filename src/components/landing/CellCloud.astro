@@ -3,10 +3,11 @@
 // Without JS the area stays blank (the axes and chip are hidden until the script runs).
 ---
 
-<div class="landing-cloud" data-cell-cloud aria-hidden="true">
-  <canvas></canvas>
-  <span class="landing-cloud__axes"><span>UMAP 1</span><span>UMAP 2</span></span>
-  <span class="landing-cloud__chip"><span class="landing-cloud__chip-dot"></span>Leiden clusters</span>
+<div class="landing-cloud" data-cell-cloud>
+  <canvas aria-hidden="true"></canvas>
+  <span class="landing-cloud__axes" aria-hidden="true"><span>UMAP 1</span><span>UMAP 2</span></span>
+  <span class="landing-cloud__chip" aria-hidden="true"><span class="landing-cloud__chip-dot"></span>Leiden clusters</span>
+  <button class="landing-cloud__pause" type="button" hidden>Pause animation</button>
   <span data-probe hidden></span>
 </div>
 
@@ -98,15 +99,16 @@
   const canvas = el?.querySelector('canvas');
   const ctx = canvas?.getContext('2d');
   const probe = el?.querySelector<HTMLElement>('[data-probe]');
+  const pause = el?.querySelector<HTMLButtonElement>('.landing-cloud__pause');
 
-  if (el && canvas && ctx && probe) {
+  if (el && canvas && ctx && probe && pause) {
     const cloud = buildCloud();
     const px = new Float32Array(MAX), py = new Float32Array(MAX);
     const drift = new Float32Array(GROUPS * 2);
     const reduce = matchMedia('(prefers-reduced-motion: reduce)');
     let colors: string[] = [];
     let sprites: HTMLCanvasElement[] = [];
-    let w = 0, h = 0, dpr = 1, n = 0, t = 8, last = 0, raf = 0, onScreen = false;
+    let w = 0, h = 0, dpr = 1, n = 0, t = 8, last = 0, raf = 0, onScreen = false, paused = false;
 
     // Soft glowing dot: fill with the colour, then cut it to a radial alpha falloff.
     // (Masking with an alpha-only gradient avoids dark fringes from colour interpolation.)
@@ -193,7 +195,8 @@
     };
 
     const sync = () => {
-      const run = onScreen && !document.hidden && !reduce.matches;
+      pause.hidden = reduce.matches;
+      const run = onScreen && !document.hidden && !reduce.matches && !paused;
       if (run && !raf) {
         last = performance.now();
         raf = requestAnimationFrame(frame);
@@ -218,9 +221,16 @@
       sync();
     }).observe(el);
 
+    // WCAG 2.2.2: moving content that runs over 5 s needs a pause control.
+    pause.addEventListener('click', () => {
+      paused = !paused;
+      pause.textContent = paused ? 'Play animation' : 'Pause animation';
+      sync();
+    });
     document.addEventListener('visibilitychange', sync);
     reduce.addEventListener('change', sync);
     readColors();
     el.classList.add('is-live');
+    sync();
   }
 </script>

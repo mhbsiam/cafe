@@ -1,3 +1,4 @@
+import html
 import io
 import os
 import random
@@ -60,12 +61,12 @@ def _render_inventory_split(cluster_ids: list[str], claimed: set[str]) -> None:
     n_asgn = len(assigned)
 
     remaining_chips = "".join(
-        f'<span class="cafe-chip cafe-chip--primary">{c}</span>'
+        f'<span class="cafe-chip cafe-chip--primary">{html.escape(c)}</span>'
         for c in remaining
     ) or '<span style="font-size:0.8125rem;color:var(--cafe-text-subtle)">none (all clusters assigned)</span>'
 
     assigned_chips = "".join(
-        f'<span class="cafe-chip cafe-chip--assigned">{c}</span>'
+        f'<span class="cafe-chip cafe-chip--assigned">{html.escape(c)}</span>'
         for c in assigned
     ) if assigned else ""
 
@@ -116,9 +117,9 @@ def _render_merge_preview(groups: list[dict]) -> None:
         if not t and not sources:
             continue
 
-        target_label = t if t else '<span style="color:var(--cafe-text-subtle)">unnamed</span>'
+        target_label = html.escape(t) if t else '<span style="color:var(--cafe-text-subtle)">unnamed</span>'
         source_chips = "".join(
-            f'<span class="cafe-chip cafe-chip--muted">{s}</span>'
+            f'<span class="cafe-chip cafe-chip--muted">{html.escape(s)}</span>'
             for s in sources
         ) if sources else '<span style="font-size:0.8125rem;color:var(--cafe-text-subtle)">no sources yet</span>'
 
@@ -137,7 +138,7 @@ def _render_merge_preview(groups: list[dict]) -> None:
         st.markdown(
             f'<div class="cafe-format-preview">'
             f'<div class="cafe-format-preview__label">Generated format string</div>'
-            f'<span class="cafe-format-preview__value">{fmt}</span>'
+            f'<span class="cafe-format-preview__value">{html.escape(fmt)}</span>'
             f'</div>',
             unsafe_allow_html=True,
         )

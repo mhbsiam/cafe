@@ -1,5 +1,3 @@
-@import url("https://fonts.bunny.net/css?family=ibm-plex-sans:400,400i,500,600|instrument-sans:500,600,700|jetbrains-mono:400,500&display=swap");
-
 /*
  * CAFE Docs — design tokens + docs chrome (Designer A).
  *
@@ -14,8 +12,8 @@
  * `:not(:where(.not-content *))` guard so it never reaches code blocks,
  * components or the landing page (which wraps its sections in `.not-content`).
  *
- * Contrast (WCAG 2.x) for every text pair is listed in the PR report; all
- * body text pairs are ≥ 4.5:1 in both themes.
+ * The site is light-only (see ThemeProvider.astro). All body text pairs
+ * are ≥ 4.5:1 (WCAG 2.x).
  */
 
 /* ======================================================== Tokens: light == */
@@ -67,7 +65,7 @@
   --cafe-space-6: 32px;
   --cafe-space-7: 48px;
   --cafe-space-8: 64px;
-  --cafe-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --cafe-ease: cubic-bezier(0.16, 1, 0.3, 1); /* ease-out-expo, same as the app */
   --cafe-maxw: 1120px;
 
   /* Re-point Starlight's derived tokens at the contract */
@@ -115,22 +113,15 @@ body {
 }
 
 /* ============================================================ Header ==== */
-/* Pattern: quiet bar with a hairline bottom (Browserbase); translucent blur is our own addition. */
+/* Quiet solid bar with a hairline bottom. */
 header.header {
-  background-color: color-mix(in srgb, var(--sl-color-black) 86%, transparent);
-  -webkit-backdrop-filter: saturate(1.4) blur(14px);
-  backdrop-filter: saturate(1.4) blur(14px);
+  background-color: var(--sl-color-black);
   border-bottom: 1px solid var(--cafe-border);
 }
 /* Splash/landing (no sidebar): align header contents with the landing column. */
 :root:not([data-has-sidebar]) header.header > .header {
   max-width: var(--cafe-maxw);
   margin-inline: auto;
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  header.header {
-    background-color: var(--sl-color-black);
-  }
 }
 
 /* GitHub (social) as a quiet round icon button, right side */
@@ -232,7 +223,7 @@ site-search dialog {
 }
 
 /* Badges ("Recommended", "Alternative"): quiet tinted pills in every variant.
-   Text on tint ≥ 6:1 in both themes; `note` speaks in the brand accent like asides. */
+   Text on tint ≥ 6:1; `note` speaks in the brand accent like asides. */
 :root {
   --sl-badge-default-bg: color-mix(in srgb, var(--sl-color-accent) 14%, var(--sl-color-black));
   --sl-badge-default-border: color-mix(in srgb, var(--sl-color-accent) 35%, var(--sl-color-black));

@@ -1,4 +1,5 @@
 import datetime
+import html
 import io
 import os
 import random
@@ -609,7 +610,7 @@ def render_batch_diagnostics(adata, batch_map):
 
     emd_df = compute_batch_emd(adata, batch_key="Batch")
     verdict, kind, _, _ = summarize_batch_effect(emd_df, adata, batch_key="Batch")
-    info_card(title="Batch effect check", body=verdict, kind=kind)
+    info_card(title="Batch effect check", body=html.escape(verdict), kind=kind)
 
     st.markdown("**Per-marker batch effect (Earth Mover's Distance)**")
     st.caption(
@@ -865,7 +866,7 @@ if not st.session_state.get("_dp_started") or st.session_state.adata is None:
             body=(
                 "Two files map to the same sample (or the same file was uploaded twice), "
                 "so their cells would be merged into one sample:<br>"
-                + "<br>".join(f"• <code>{d}</code>" for d in duplicates)
+                + "<br>".join(f"• <code>{html.escape(d)}</code>" for d in duplicates)
                 + "<br><br>Give every file a unique SampleID, remove the extra copy, and re-upload."
             ),
             kind="error",
@@ -876,7 +877,7 @@ if not st.session_state.get("_dp_started") or st.session_state.adata is None:
             title="Filename convention",
             body=(
                 "These file(s) don't match <code>SampleID_Group.csv</code> and would be "
-                "skipped:<br>" + "<br>".join(f"• <code>{n}</code>" for n in bad_names) +
+                "skipped:<br>" + "<br>".join(f"• <code>{html.escape(n)}</code>" for n in bad_names) +
                 "<br><br>Rename them and re-upload."
             ),
             kind="error",
@@ -884,8 +885,8 @@ if not st.session_state.get("_dp_started") or st.session_state.adata is None:
 
     if mismatches:
         rows = "".join(
-            f"• <code>{m['file']}</code> is missing: "
-            f"{', '.join('<code>%s</code>' % x for x in m['missing'])}<br>"
+            f"• <code>{html.escape(m['file'])}</code> is missing: "
+            f"{', '.join('<code>%s</code>' % html.escape(x) for x in m['missing'])}<br>"
             for m in mismatches
         )
         info_card(

@@ -30,7 +30,11 @@ def render_landing_page(
 ):
     """Render the CAFE welcome page (workflow_image, how_to_title, and system-requirements section vary by build)."""
     st.logo(os.path.join(IMG_DIR, "s_logo.png"))
-    st.image(os.path.join(IMG_DIR, "logo.png"), caption="", width="stretch")
+    st.image(
+        os.path.join(IMG_DIR, "logo.png"),
+        alt="CAFE: Cell Analyzer for Flow Experiment, from the Tyrrell Lab",
+        width="stretch",
+    )
 
     # Hero mirrors the docs landing page (badge, display headline, pill links).
     st.markdown(
@@ -38,7 +42,7 @@ def render_landing_page(
         <section class="cafe-hero">
           <p class="cafe-hero__badge"><span class="cafe-hero__dot"></span>
             Published in <em>Bioinformatics</em><span class="cafe-hero__year">2025</span></p>
-          <h1 class="cafe-hero__title">Cell Analyzer for Flow Experiment</h1>
+          <h1 class="cafe-hero__title">Spectral flow cytometry analysis, no code required.</h1>
           <p class="cafe-hero__lede">Explore and analyze spectral flow cytometry data interactively.
             CAFE analyzes immune cells and generates publishable figures, without writing code.</p>
           <p class="cafe-hero__actions">
@@ -69,6 +73,8 @@ def render_landing_page(
     st.image(
         os.path.join(IMG_DIR, workflow_image),
         caption="CAFE workflow: upload CSVs, process into an AnnData object, then visualize and export results.",
+        alt="Workflow diagram: CSV files, rename files, navigate to the CAFE directory, run CAFE, "
+            "load CSV files, adjust settings, generate AnnData, downstream analysis.",
         width="stretch",
     )
 
@@ -137,9 +143,17 @@ def render_landing_page(
         st.image(
             os.path.join(IMG_DIR, "os_selection.png"),
             caption="Choosing the right CAFE build for your operating system.",
+            alt="Recommended setup: macOS or Linux for best performance, WSL instead of plain Windows, "
+                "and at least 16 GB RAM.",
             width="stretch",
         )
         st.divider()
 
-    st.image(os.path.join(IMG_DIR, "funding.png"), caption="", width="stretch")
-    st.image(os.path.join(IMG_DIR, "uab.png"), caption="", width="stretch")
+    st.image(
+        os.path.join(IMG_DIR, "funding.png"),
+        alt="Funded by the National Institute on Aging (NIH), the Glenn Foundation for Medical Research, "
+            "the Nathan Shock Centers of Excellence in the Basic Biology of Aging, and the American "
+            "Federation for Aging Research.",
+        width="stretch",
+    )
+    st.image(os.path.join(IMG_DIR, "uab.png"), alt="The University of Alabama at Birmingham", width="stretch")
